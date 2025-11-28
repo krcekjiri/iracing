@@ -13,10 +13,6 @@ const defaultForm = {
   formationLapFuel: 1,
   minLapsPerStint: '',
   maxLapsPerStint: '',
-  outLapPenaltyOutLap: 4.5,
-  outLapPenaltyLap1: 2.5,
-  outLapPenaltyLap2: 1,
-  outLapPenaltyLap3: 0.5,
 };
 
 const roundTo = (value, decimals = 1) =>
@@ -161,11 +157,12 @@ const computePlan = (form, strategyMode = 'standard') => {
   const pitLaneDelta = safeNumber(form.pitLaneDeltaSeconds) || 0;
   const stationaryService = safeNumber(form.stationaryServiceSeconds) || 0;
   const formationLapFuel = safeNumber(form.formationLapFuel) || 0;
+  // Outlap penalties removed from UI but still used in calculations with default values
   const outLapPenalties = [
-    safeNumber(form.outLapPenaltyOutLap),
-    safeNumber(form.outLapPenaltyLap1),
-    safeNumber(form.outLapPenaltyLap2),
-    safeNumber(form.outLapPenaltyLap3),
+    safeNumber(form.outLapPenaltyOutLap) || 0,
+    safeNumber(form.outLapPenaltyLap1) || 0,
+    safeNumber(form.outLapPenaltyLap2) || 0,
+    safeNumber(form.outLapPenaltyLap3) || 0,
   ].map((val) => (Number.isFinite(val) && val > 0 ? val : 0));
   const minLapsPerStint = safeNumber(form.minLapsPerStint);
   const maxLapsPerStint = safeNumber(form.maxLapsPerStint);
@@ -1612,6 +1609,11 @@ const PlannerApp = () => {
   const [raceStartGMTTime, setRaceStartGMTTime] = useState('12:00:00');
   const [raceStartGameTime, setRaceStartGameTime] = useState('08:00:00');
   const [delayTime, setDelayTime] = useState('44:00');
+  const [fuelCalc, setFuelCalc] = useState({
+    fuelRemaining: '',
+    targetLaps: '',
+    fuelReserve: '',
+  });
   const [delayInputMode, setDelayInputMode] = useState('manual'); // 'manual' or 'log'
   const [stintActualEndTimes, setStintActualEndTimes] = useState({});
   const [stintActualLaps, setStintActualLaps] = useState({});
@@ -1734,11 +1736,12 @@ const PlannerApp = () => {
     const reserveLiters = Number(form.fuelReserveLiters) || 0;
     const pitLaneDelta = Number(form.pitLaneDeltaSeconds) || 0;
     const formationLapFuel = Number(form.formationLapFuel) || 0;
+    // Outlap penalties removed from UI but still used in calculations with default values
     const outLapPenalties = [
-      safeNumber(form.outLapPenaltyOutLap),
-      safeNumber(form.outLapPenaltyLap1),
-      safeNumber(form.outLapPenaltyLap2),
-      safeNumber(form.outLapPenaltyLap3),
+      safeNumber(form.outLapPenaltyOutLap) || 0,
+      safeNumber(form.outLapPenaltyLap1) || 0,
+      safeNumber(form.outLapPenaltyLap2) || 0,
+      safeNumber(form.outLapPenaltyLap3) || 0,
     ].map((val) => (Number.isFinite(val) && val > 0 ? val : 0));
 
     const totalLaps = baseResult.totalLaps;
@@ -1957,10 +1960,21 @@ const PlannerApp = () => {
         >
           Pit Stop Modelling
         </button>
+        <button
+          className={activeTab === 'fuel-calculator' ? 'active' : ''}
+          onClick={() => setActiveTab('fuel-calculator')}
+        >
+          Fuel Calculator
+        </button>
       </div>
 
       {activeTab === 'setup' && (
         <div className="tab-content">
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Configure race parameters, fuel consumption, and pit stop settings. These values are used to calculate optimal strategy and stint planning.
+            </p>
+          </div>
           <div className="inputs-grid">
         <div className="card">
           <SectionHeading title="Race & Fuel" />
@@ -2060,41 +2074,6 @@ const PlannerApp = () => {
           </div>
         </div>
 
-        <div className="card">
-          <SectionHeading title="Out-Lap Adjustments" />
-          <InputField
-            label="Outlap Penalty"
-            suffix="sec"
-            type="number"
-            value={form.outLapPenaltyOutLap}
-            onChange={handleInput('outLapPenaltyOutLap')}
-            helpText="Delta for the outlap immediately after the pit stop before crossing start/finish."
-          />
-          <InputField
-            label="Lap 1 Penalty"
-            suffix="sec"
-            type="number"
-            value={form.outLapPenaltyLap1}
-            onChange={handleInput('outLapPenaltyLap1')}
-            helpText="Extra seconds your first flying lap of each stint typically loses."
-          />
-          <InputField
-            label="Lap 2 Penalty"
-            suffix="sec"
-            type="number"
-            value={form.outLapPenaltyLap2}
-            onChange={handleInput('outLapPenaltyLap2')}
-            helpText="Second flying lap delta if tires are still coming up to temperature."
-          />
-          <InputField
-            label="Lap 3 Penalty"
-            suffix="sec"
-            type="number"
-            value={form.outLapPenaltyLap3}
-            onChange={handleInput('outLapPenaltyLap3')}
-            helpText="Optional third-lap adjustment for longer warm-up cycles."
-          />
-        </div>
           </div>
         </div>
       )}
@@ -2102,6 +2081,11 @@ const PlannerApp = () => {
 
       {activeTab === 'strategy' && (
         <div className="tab-content">
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              View calculated strategy plans for Standard and Fuel-Saving modes. Compare total laps, pit stops, and race times. Use the detailed stint planner to refine individual stints.
+            </p>
+          </div>
           {(() => {
             try {
               return (
@@ -2284,6 +2268,11 @@ const PlannerApp = () => {
 
       {activeTab === 'schedule' && (
         <div className="tab-content">
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Assign drivers to stints, log actual lap counts and end times during the race. Compare planned vs. actual performance with visual indicators and the plan vs. reality graph.
+            </p>
+          </div>
           <div className="card">
             <SectionHeading
               title="Race Schedule"
@@ -2416,6 +2405,11 @@ const PlannerApp = () => {
 
       {activeTab === 'sandbox' && (
         <div className="tab-content">
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Model pit stop times by configuring tire changes, fuel amounts, and driver swaps. See which service is the bottleneck and optimize your pit strategy.
+            </p>
+          </div>
           <div className="card">
             <SectionHeading
               title="Pit Stop Modelling"
@@ -2708,6 +2702,11 @@ const PlannerApp = () => {
 
       {activeTab === 'lap-times' && (
         <div className="tab-content">
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Visualize and adjust lap times for each stint. Select strategy mode, drag data points to modify individual lap times, and see how changes affect total stint time and average lap time.
+            </p>
+          </div>
           <div className="card">
             <SectionHeading
               title="Stint Modelling"
@@ -2749,11 +2748,12 @@ const PlannerApp = () => {
                         );
                         
                         const lapSeconds = strategyResult.lapSeconds || activeResult.lapSeconds;
+                        // Outlap penalties removed from UI but still used in calculations with default values
                         const outLapPenalties = [
-                          safeNumber(form.outLapPenaltyOutLap),
-                          safeNumber(form.outLapPenaltyLap1),
-                          safeNumber(form.outLapPenaltyLap2),
-                          safeNumber(form.outLapPenaltyLap3),
+                          safeNumber(form.outLapPenaltyOutLap) || 0,
+                          safeNumber(form.outLapPenaltyLap1) || 0,
+                          safeNumber(form.outLapPenaltyLap2) || 0,
+                          safeNumber(form.outLapPenaltyLap3) || 0,
                         ].map((val) => (Number.isFinite(val) && val > 0 ? val : 0));
                         
                         // Generate default lap times: outlaps are slower, then gradually improve
@@ -3260,13 +3260,133 @@ const PlannerApp = () => {
         </div>
       )}
 
+      {activeTab === 'fuel-calculator' && (
+        <div className="tab-content">
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Calculate target fuel consumption per lap to achieve your target laps. View sensitivity analysis showing how fuel consumption variations affect possible lap counts.
+            </p>
+          </div>
+          
+          <div className="card">
+            <SectionHeading title="Fuel Calculator" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 20 }}>
+              <InputField
+                label="Fuel Remaining"
+                suffix="L"
+                type="number"
+                value={fuelCalc.fuelRemaining}
+                onChange={(e) => setFuelCalc(prev => ({ ...prev, fuelRemaining: e.target.value }))}
+                step="0.1"
+                helpText="Current fuel remaining in the tank"
+              />
+              <InputField
+                label="Target Laps"
+                type="number"
+                value={fuelCalc.targetLaps}
+                onChange={(e) => setFuelCalc(prev => ({ ...prev, targetLaps: e.target.value }))}
+                step="0.1"
+                helpText="Number of laps you want to complete"
+              />
+              <InputField
+                label="Fuel Reserve"
+                suffix="L"
+                type="number"
+                value={fuelCalc.fuelReserve}
+                onChange={(e) => setFuelCalc(prev => ({ ...prev, fuelReserve: e.target.value }))}
+                step="0.1"
+                helpText="Reserve fuel to keep in tank at the end"
+              />
+            </div>
+            
+            {/* Results */}
+            {(() => {
+              const fuelRemaining = parseFloat(fuelCalc.fuelRemaining) || 0;
+              const targetLaps = parseFloat(fuelCalc.targetLaps) || 0;
+              const fuelReserve = parseFloat(fuelCalc.fuelReserve) || 0;
+              const usableFuel = fuelRemaining - fuelReserve;
+              const targetFuelPerLap = targetLaps > 0 ? usableFuel / targetLaps : 0;
+              
+              return (
+                <div style={{ marginTop: 24 }}>
+                  <div style={{ padding: 16, background: 'var(--surface-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <span className="stat-label">Target Fuel Consumption</span>
+                      <div className="stat-value" style={{ fontSize: '1.5rem', color: 'var(--accent)' }}>
+                        {targetFuelPerLap > 0 ? targetFuelPerLap.toFixed(3) : '--'} L/lap
+                      </div>
+                    </div>
+                    <div className="stat-label" style={{ fontSize: '0.75rem' }}>
+                      {usableFuel > 0 ? `${usableFuel.toFixed(1)} L usable fuel ÷ ${targetLaps} laps` : 'Enter values to calculate'}
+                    </div>
+                  </div>
+                  
+                  {/* Sensitivity Chart */}
+                  {targetFuelPerLap > 0 && (
+                    <div style={{ marginTop: 24 }}>
+                      <h4 style={{ marginBottom: 16, fontSize: '1rem' }}>Sensitivity Analysis</h4>
+                      <div style={{ padding: 16, background: 'var(--surface-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                          <div>
+                            <span className="stat-label" style={{ fontSize: '0.75rem' }}>Fuel Consumption</span>
+                          </div>
+                          <div>
+                            <span className="stat-label" style={{ fontSize: '0.75rem' }}>Possible Laps</span>
+                          </div>
+                        </div>
+                        {(() => {
+                          const variations = [-0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2];
+                          return variations.map((variation) => {
+                            const testFuelPerLap = targetFuelPerLap + variation;
+                            const possibleLaps = testFuelPerLap > 0 ? usableFuel / testFuelPerLap : 0;
+                            const isTarget = variation === 0;
+                            return (
+                              <div 
+                                key={variation}
+                                style={{ 
+                                  display: 'grid', 
+                                  gridTemplateColumns: '1fr 1fr', 
+                                  gap: 12,
+                                  padding: '8px 12px',
+                                  background: isTarget ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                                  borderRadius: 4,
+                                  border: isTarget ? '1px solid var(--accent)' : 'none'
+                                }}
+                              >
+                                <div style={{ fontSize: '0.85rem', color: isTarget ? 'var(--accent)' : 'var(--text)' }}>
+                                  {testFuelPerLap.toFixed(3)} L/lap {variation !== 0 && `(${variation > 0 ? '+' : ''}${variation.toFixed(2)} L)`}
+                                </div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: isTarget ? 600 : 400, color: isTarget ? 'var(--accent)' : 'var(--text)' }}>
+                                  {possibleLaps.toFixed(2)} laps
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'release-notes' && (
         <div className="tab-content">
           <div className="card">
             <h2 style={{ marginTop: 0 }}>Release Notes</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               <div>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: 8, color: 'var(--accent)' }}>v0.1.0 - Initial Release</h3>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: 8, color: 'var(--accent)' }}>v0.2.0 - Fuel Calculator & Improvements</h3>
+                <ul style={{ marginTop: 8, paddingLeft: 20, color: 'var(--text-muted)' }}>
+                  <li>New Fuel Calculator tab with sensitivity analysis</li>
+                  <li>Removed outlap penalties from Setup (still used in calculations)</li>
+                  <li>Added helpful descriptions to each tab</li>
+                  <li>Improved UI clarity and organization</li>
+                </ul>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: 8, marginTop: 24, color: 'var(--accent)' }}>v0.1.0 - Initial Release</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div>
                     <strong style={{ color: 'var(--text)' }}>Features:</strong>
@@ -3292,7 +3412,7 @@ const PlannerApp = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <span>Built for iRacing Endurance strategy preparation — race smarter.</span>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>v0.1.0</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>v0.2.0</span>
             <a 
               href="#release-notes" 
               onClick={(e) => {
