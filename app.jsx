@@ -294,24 +294,29 @@ const computePlan = (form, strategyMode = 'standard') => {
 
   // NOW calculate stint count - OPTIMIZE to minimize stints by redistributing laps
   // For fuel-saving, we want to use fewer stints by extending stints up to fuel limit
+  // Calculate max laps per stint based on fuel capacity
   const maxLapsPerStintWithFuel = Math.floor(tankCapacity / fuelPerLap);
+  // Apply user constraint if set
+  const effectiveMaxLapsForOptimization = maxLapsPerStint && maxLapsPerStint > 0 
+    ? Math.min(maxLapsPerStintWithFuel, Math.floor(maxLapsPerStint))
+    : maxLapsPerStintWithFuel;
 
   // Try to minimize stints by redistributing laps
   // Start with minimum possible stints
-  let stintCount = Math.ceil(totalLaps / maxLapsPerStintWithFuel);
+  let stintCount = Math.ceil(totalLaps / effectiveMaxLapsForOptimization);
 
   // Check if we can actually fit all laps with this stint count
   const avgLapsPerStint = totalLaps / stintCount;
-  if (avgLapsPerStint > maxLapsPerStintWithFuel) {
+  if (avgLapsPerStint > effectiveMaxLapsForOptimization) {
     // Can't fit - need more stints
-    stintCount = Math.ceil(totalLaps / maxLapsPerStintWithFuel);
+    stintCount = Math.ceil(totalLaps / effectiveMaxLapsForOptimization);
   } else {
     // We can fit - but check if we can use even fewer stints by redistributing
     // Try one fewer stint
     let testStintCount = stintCount - 1;
     while (testStintCount > 0) {
       const testAvgLaps = totalLaps / testStintCount;
-      if (testAvgLaps <= maxLapsPerStintWithFuel) {
+      if (testAvgLaps <= effectiveMaxLapsForOptimization) {
         // Can fit with fewer stints - use this
         stintCount = testStintCount;
         testStintCount--; // Try even fewer
@@ -334,8 +339,25 @@ const computePlan = (form, strategyMode = 'standard') => {
   let totalPitTime = 0;
 
   // NOW build the actual stint plan with the correct stintCount
+  // Distribute laps evenly across stints, respecting fuel and user constraints
+  // Reuse maxLapsPerStintWithFuel from above, calculate effective max with constraints
+  const effectiveMaxLapsPerStint = maxLapsPerStint && maxLapsPerStint > 0 
+    ? Math.min(maxLapsPerStintWithFuel, Math.floor(maxLapsPerStint))
+    : maxLapsPerStintWithFuel;
+
+  const baseLapsPerStint = Math.floor(totalLaps / stintCount);
+  const extraLaps = totalLaps % stintCount; // Distribute remainder to first few stints
+
   for (let idx = 0; idx < stintCount; idx += 1) {
-    const lapsThisStint = Math.min(lapsPerStint, totalLaps - completedLaps);
+    // Distribute laps evenly, with remainder going to first stints
+    let lapsThisStint = baseLapsPerStint + (idx < extraLaps ? 1 : 0);
+    
+    // Ensure we don't exceed fuel capacity or user constraint
+    lapsThisStint = Math.min(lapsThisStint, effectiveMaxLapsPerStint);
+    
+    // Ensure we don't exceed remaining laps
+    lapsThisStint = Math.min(lapsThisStint, totalLaps - completedLaps);
+    
     const penaltiesForStint = outLapPenalties
       .slice(0, Math.min(outLapPenalties.length, lapsThisStint))
       .filter(Boolean);
