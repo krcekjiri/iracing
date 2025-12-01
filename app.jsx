@@ -564,7 +564,7 @@ const StrategyGraph = ({ plan, perStopLoss }) => {
           const pitRectWidth = Math.max(pitWidth, row.pitSeconds > 0 ? 4 : 0);
           const y = idx * (barHeight + gap) + 30;
           const lapCount = Math.max(row.laps, 1);
-          const avgLapFormatted = lapCount ? formatDuration(row.trackSeconds / lapCount) : '--';
+          const avgLapFormatted = lapCount ? formatLapTime(row.trackSeconds / lapCount) : '--';
           const totalSeconds = row.trackSeconds + row.pitSeconds;
           // Position label outside bars on the right
           const labelX = barStart + barWidth + 12;
@@ -684,9 +684,13 @@ const StintPlanCard = ({
     const [removed] = newPlan.splice(draggedIndex, 1);
     newPlan.splice(dropIndex, 0, removed);
     
-    // Update IDs to reflect new order
+    // Recalculate lap intervals based on new order
+    let cumulativeLaps = 0;
     newPlan.forEach((stint, idx) => {
       stint.id = idx + 1;
+      stint.startLap = cumulativeLaps + 1;
+      cumulativeLaps += stint.laps;
+      stint.endLap = cumulativeLaps;
     });
     
     setReorderedPlan(newPlan);
@@ -2397,24 +2401,23 @@ const PlannerApp = () => {
             }, [activeResult.stintPlan, activeResult.errors]);
             
             return (
-              <StintPlanCard
-                plan={reorderedStints}
-                reservePerStint={reservePerStint}
-                formationLapFuel={Number(form.formationLapFuel) || 0}
-                onReorder={(newPlan) => {
-                  setReorderedStints(newPlan);
-                }}
-              />
+              <>
+                <StintPlanCard
+                  plan={reorderedStints}
+                  reservePerStint={reservePerStint}
+                  formationLapFuel={Number(form.formationLapFuel) || 0}
+                  onReorder={(newPlan) => {
+                    setReorderedStints(newPlan);
+                  }}
+                />
+                {!activeResult.errors?.length && reorderedStints.length > 0 && (
+                  <StrategyGraph plan={reorderedStints} perStopLoss={activeResult.perStopLoss} />
+                )}
+              </>
             );
           };
           
           return <ReorderableStintPlanCard />;
-        })()}
-        {(() => {
-          const activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
-          return !activeResult.errors?.length ? (
-            <StrategyGraph plan={activeResult.stintPlan} perStopLoss={activeResult.perStopLoss} />
-          ) : null;
         })()}
                 </div>
               </>
@@ -2881,15 +2884,19 @@ const PlannerApp = () => {
               try {
                 const StintGraph = () => {
                   // Get values from Setup tab, but allow overriding
+                  // Pre-populate from Strategy tab if available
+                  const defaultStandardLaps = standardResult?.stintPlan?.[0]?.laps || 0;
+                  const defaultFuelSavingLaps = fuelSavingResult?.stintPlan?.[0]?.laps || 0;
+                  
                   const standardLapTime = parseLapTime(stintModelling.standardLapTime || form.averageLapTime) || 103.5;
                   const fuelSavingLapTime = parseLapTime(stintModelling.fuelSavingLapTime || form.fuelSavingLapTime) || 103.9;
-                  const standardLaps = parseInt(stintModelling.standardLaps || '') || 0;
-                  const fuelSavingLaps = parseInt(stintModelling.fuelSavingLaps || '') || 0;
+                  const standardLaps = parseInt(stintModelling.standardLaps || defaultStandardLaps) || 0;
+                  const fuelSavingLaps = parseInt(stintModelling.fuelSavingLaps || defaultFuelSavingLaps) || 0;
                   
                   // Tyre warming penalties relative to lap 4: lap 1 = +3, lap 2 = +1.5, lap 3 = +0.5, lap 4 = baseline
                   const tyreWarmingPenalties = [3, 1.5, 0.5]; // Applied to laps 1, 2, 3
                   
-                  // Generate default lap times for a strategy
+                  // Generate default lap times with exponential decrease for laps 1-4, then linear
                   const generateDefaultLapTimes = (baseline, laps) => {
                     const times = [];
                     const midLap = Math.ceil(laps / 2);
@@ -2897,28 +2904,30 @@ const PlannerApp = () => {
                     for (let lap = 1; lap <= laps; lap++) {
                       let baseTime = baseline;
                       
-                      // Apply tyre warming penalties for first 3 laps (relative to lap 4)
-                      if (lap <= 3) {
-                        baseTime += tyreWarmingPenalties[lap - 1];
+                      // Laps 1-4: Exponential decrease in penalty (relative to lap 4 baseline)
+                      // Lap 1 = +3, Lap 2 = +1.5, Lap 3 = +0.5, Lap 4 = baseline (0)
+                      if (lap === 1) {
+                        baseTime += 3; // +3s
+                      } else if (lap === 2) {
+                        baseTime += 1.5; // +1.5s
+                      } else if (lap === 3) {
+                        baseTime += 0.5 + 0.5; // +0.5s penalty + 0.5s inlap = +1s total
                       }
+                      // Lap 4 is baseline (no penalty)
                       
-                      // Make lap 3 slower (inlap) - already has 0.5s penalty, add 0.5s more
-                      if (lap === 3) {
-                        baseTime += 0.5;
+                      // After lap 4: Linear progression around middle
+                      if (lap > 4) {
+                        if (lap < midLap) {
+                          // Before middle: slower by 0.05% per lap away from middle
+                          const lapsFromMid = midLap - lap;
+                          baseTime = baseTime * (1 + (lapsFromMid * 0.0005));
+                        } else if (lap > midLap) {
+                          // After middle: faster by 0.05% per lap away from middle
+                          const lapsFromMid = lap - midLap;
+                          baseTime = baseTime * (1 - (lapsFromMid * 0.0005));
+                        }
+                        // lap === midLap stays at baseline
                       }
-                      
-                      // Model laps around middle: before mid is slower, after mid is faster
-                      // Baseline is the middle lap
-                      if (lap < midLap) {
-                        // Before middle: slower by 0.05% per lap away from middle
-                        const lapsFromMid = midLap - lap;
-                        baseTime = baseTime * (1 + (lapsFromMid * 0.0005));
-                      } else if (lap > midLap) {
-                        // After middle: faster by 0.05% per lap away from middle
-                        const lapsFromMid = lap - midLap;
-                        baseTime = baseTime * (1 - (lapsFromMid * 0.0005));
-                      }
-                      // lap === midLap stays at baseline
                       
                       times.push(baseTime);
                     }
@@ -2938,6 +2947,11 @@ const PlannerApp = () => {
                   
                   const [standardLapTimesState, setStandardLapTimesState] = useState(standardLapTimes);
                   const [fuelSavingLapTimesState, setFuelSavingLapTimesState] = useState(fuelSavingLapTimes);
+                  const [standardDraggingIndex, setStandardDraggingIndex] = useState(null);
+                  const [fuelSavingDraggingIndex, setFuelSavingDraggingIndex] = useState(null);
+                  const [standardHoverIndex, setStandardHoverIndex] = useState(null);
+                  const [fuelSavingHoverIndex, setFuelSavingHoverIndex] = useState(null);
+                  const svgRef = useRef(null);
                   
                   // Update when inputs change
                   useEffect(() => {
@@ -2986,19 +3000,70 @@ const PlannerApp = () => {
                     return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
                   }).join(' ');
 
-                  // Generate Y-axis labels with rounded values
+                  // Generate Y-axis labels with normalized values (rounded to clean intervals)
                   const yAxisLabels = [];
                   const numYLabels = 8;
                   for (let i = 0; i <= numYLabels; i++) {
                     const time = minTime + (timeRange * i / numYLabels);
-                    // Round to nearest millisecond for cleaner display
-                    const roundedTime = Math.round(time * 1000) / 1000;
+                    // Round to nearest 0.1 second for cleaner display
+                    const roundedTime = Math.round(time * 10) / 10;
                     yAxisLabels.push({
                       time: roundedTime,
                       y: scaleY(time),
                       label: formatLapTime(roundedTime)
                     });
                   }
+                  
+                  // Drag handlers for standard line
+                  const handleStandardMouseDown = (e, index) => {
+                    e.preventDefault();
+                    setStandardDraggingIndex(index);
+                  };
+                  
+                  // Drag handlers for fuel-saving line
+                  const handleFuelSavingMouseDown = (e, index) => {
+                    e.preventDefault();
+                    setFuelSavingDraggingIndex(index);
+                  };
+                  
+                  const handleMouseMove = (e) => {
+                    const draggingIndex = standardDraggingIndex !== null ? standardDraggingIndex : fuelSavingDraggingIndex;
+                    const isStandard = standardDraggingIndex !== null;
+                    
+                    if (draggingIndex === null) return;
+                    
+                    const svg = svgRef.current;
+                    if (!svg) return;
+                    
+                    const rect = svg.getBoundingClientRect();
+                    const y = e.clientY - rect.top;
+                    
+                    const graphY = y - padding.top;
+                    const normalizedY = 1 - (graphY / graphHeight);
+                    const newTime = minTime + normalizedY * timeRange;
+                    
+                    const baseline = isStandard ? standardLapTime : fuelSavingLapTime;
+                    const clampedTime = Math.max(baseline * 0.7, Math.min(baseline * 1.5, newTime));
+                    
+                    if (isStandard) {
+                      setStandardLapTimesState(prev => {
+                        const newTimes = [...prev];
+                        newTimes[draggingIndex] = clampedTime;
+                        return newTimes;
+                      });
+                    } else {
+                      setFuelSavingLapTimesState(prev => {
+                        const newTimes = [...prev];
+                        newTimes[draggingIndex] = clampedTime;
+                        return newTimes;
+                      });
+                    }
+                  };
+                  
+                  const handleMouseUp = () => {
+                    setStandardDraggingIndex(null);
+                    setFuelSavingDraggingIndex(null);
+                  };
 
                   return (
                     <div style={{ 
@@ -3008,7 +3073,7 @@ const PlannerApp = () => {
                       border: '1px solid var(--border)',
                       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
                     }}>
-                      {/* Input fields for both strategies */}
+                      {/* Reordered inputs: Standard first, then Fuel-Saving */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 24 }}>
                         <div>
                           <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3018,8 +3083,11 @@ const PlannerApp = () => {
                           <input
                             type="text"
                             placeholder="MM:SS.sss"
-                            value={stintModelling.standardLapTime || form.averageLapTime}
-                            onChange={(e) => setStintModelling(prev => ({ ...prev, standardLapTime: e.target.value }))}
+                            defaultValue={stintModelling.standardLapTime || form.averageLapTime}
+                            onBlur={(e) => {
+                              const value = e.target.value;
+                              setStintModelling(prev => ({ ...prev, standardLapTime: value }));
+                            }}
                             style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
                           />
                         </div>
@@ -3030,8 +3098,11 @@ const PlannerApp = () => {
                           </label>
                           <input
                             type="number"
-                            value={stintModelling.standardLaps || ''}
-                            onChange={(e) => setStintModelling(prev => ({ ...prev, standardLaps: e.target.value }))}
+                            defaultValue={stintModelling.standardLaps || defaultStandardLaps}
+                            onBlur={(e) => {
+                              const value = e.target.value;
+                              setStintModelling(prev => ({ ...prev, standardLaps: value }));
+                            }}
                             style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
                           />
                         </div>
@@ -3043,8 +3114,11 @@ const PlannerApp = () => {
                           <input
                             type="text"
                             placeholder="MM:SS.sss"
-                            value={stintModelling.fuelSavingLapTime || form.fuelSavingLapTime}
-                            onChange={(e) => setStintModelling(prev => ({ ...prev, fuelSavingLapTime: e.target.value }))}
+                            defaultValue={stintModelling.fuelSavingLapTime || form.fuelSavingLapTime}
+                            onBlur={(e) => {
+                              const value = e.target.value;
+                              setStintModelling(prev => ({ ...prev, fuelSavingLapTime: value }));
+                            }}
                             style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
                           />
                         </div>
@@ -3055,14 +3129,17 @@ const PlannerApp = () => {
                           </label>
                           <input
                             type="number"
-                            value={stintModelling.fuelSavingLaps || ''}
-                            onChange={(e) => setStintModelling(prev => ({ ...prev, fuelSavingLaps: e.target.value }))}
+                            defaultValue={stintModelling.fuelSavingLaps || defaultFuelSavingLaps}
+                            onBlur={(e) => {
+                              const value = e.target.value;
+                              setStintModelling(prev => ({ ...prev, fuelSavingLaps: value }));
+                            }}
                             style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
                           />
                         </div>
                       </div>
                       
-                      {/* Metrics */}
+                      {/* Metrics - reordered: Standard first */}
                       <div style={{ display: 'flex', gap: 24, marginBottom: 24, flexWrap: 'wrap' }}>
                         <div style={{ padding: 12, background: 'rgba(14, 165, 233, 0.1)', borderRadius: 8, border: '1px solid rgba(14, 165, 233, 0.3)' }}>
                           <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>Standard Strategy</div>
@@ -3092,9 +3169,14 @@ const PlannerApp = () => {
                         </div>
                       </div>
 
-                      {/* Graph SVG */}
-                      <div style={{ position: 'relative', background: 'var(--surface)', borderRadius: 12, padding: 16, border: '1px solid var(--border)' }}>
-                        <svg width={width} height={height} style={{ display: 'block' }}>
+                      {/* Graph SVG with drag points and tooltips */}
+                      <div 
+                        style={{ position: 'relative', background: 'var(--surface)', borderRadius: 12, padding: 16, border: '1px solid var(--border)' }}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                      >
+                        <svg width={width} height={height} style={{ display: 'block', cursor: (standardDraggingIndex !== null || fuelSavingDraggingIndex !== null) ? 'grabbing' : 'default' }} ref={svgRef}>
                           {/* Grid lines */}
                           {yAxisLabels.map((label, idx) => (
                             <g key={idx}>
@@ -3110,12 +3192,14 @@ const PlannerApp = () => {
                             </g>
                           ))}
                           
-                          {/* X-axis grid lines */}
-                          {Array.from({ length: maxLaps }, (_, i) => {
-                            const x = scaleX(i);
+                          {/* X-axis grid lines - increments of 5 */}
+                          {Array.from({ length: Math.ceil(maxLaps / 5) }, (_, i) => {
+                            const lapNum = (i + 1) * 5;
+                            if (lapNum > maxLaps) return null;
+                            const x = scaleX(lapNum - 1);
                             return (
                               <line
-                                key={i}
+                                key={lapNum}
                                 x1={x}
                                 y1={padding.top}
                                 x2={x}
@@ -3142,13 +3226,14 @@ const PlannerApp = () => {
                             </g>
                           ))}
 
-                          {/* X-axis labels */}
-                          {Array.from({ length: maxLaps }, (_, i) => {
-                            const x = scaleX(i);
-                            const showLabel = i === 0 || i === maxLaps - 1 || (i % Math.ceil(maxLaps / 8) === 0);
-                            return showLabel ? (
+                          {/* X-axis labels - increments of 5 */}
+                          {Array.from({ length: Math.ceil(maxLaps / 5) }, (_, i) => {
+                            const lapNum = (i + 1) * 5;
+                            if (lapNum > maxLaps) return null;
+                            const x = scaleX(lapNum - 1);
+                            return (
                               <text
-                                key={i}
+                                key={lapNum}
                                 x={x}
                                 y={height - padding.bottom + 20}
                                 fill="var(--text-muted)"
@@ -3156,9 +3241,9 @@ const PlannerApp = () => {
                                 textAnchor="middle"
                                 style={{ userSelect: 'none' }}
                               >
-                                {i + 1}
+                                {lapNum}
                               </text>
-                            ) : null;
+                            );
                           })}
 
                           {/* Axis lines */}
@@ -3204,6 +3289,84 @@ const PlannerApp = () => {
                               style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.3))' }}
                             />
                           )}
+                          
+                          {/* Standard data points with drag and hover */}
+                          {standardLapTimesState.map((time, index) => {
+                            const x = scaleX(index);
+                            const y = scaleY(time);
+                            const isDragging = standardDraggingIndex === index;
+                            const isHovering = standardHoverIndex === index;
+                            
+                            return (
+                              <g key={`std-${index}`}>
+                                {(isHovering || isDragging) && (
+                                  <circle cx={x} cy={y} r="8" fill="#0ea5e9" opacity="0.2" />
+                                )}
+                                <circle
+                                  cx={x}
+                                  cy={y}
+                                  r={isDragging ? 7 : isHovering ? 6 : 5}
+                                  fill="#0ea5e9"
+                                  stroke="#071321"
+                                  strokeWidth="2"
+                                  style={{ cursor: 'grab', transition: isDragging ? 'none' : 'r 0.2s ease' }}
+                                  onMouseDown={(e) => handleStandardMouseDown(e, index)}
+                                  onMouseEnter={() => setStandardHoverIndex(index)}
+                                  onMouseLeave={() => setStandardHoverIndex(null)}
+                                />
+                                {(isHovering || isDragging) && (
+                                  <g>
+                                    <rect x={x - 45} y={y - 45} width="90" height="32" rx="4" fill="rgba(2, 11, 22, 0.95)" stroke="#0ea5e9" strokeWidth="1" />
+                                    <text x={x} y={y - 28} fill="#0ea5e9" fontSize="10" fontWeight="600" textAnchor="middle" style={{ userSelect: 'none' }}>
+                                      Lap {index + 1}
+                                    </text>
+                                    <text x={x} y={y - 15} fill="#0ea5e9" fontSize="11" fontWeight="600" textAnchor="middle" style={{ userSelect: 'none' }}>
+                                      {formatLapTime(time)}
+                                    </text>
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          })}
+                          
+                          {/* Fuel-saving data points with drag and hover */}
+                          {fuelSavingLapTimesState.map((time, index) => {
+                            const x = scaleX(index);
+                            const y = scaleY(time);
+                            const isDragging = fuelSavingDraggingIndex === index;
+                            const isHovering = fuelSavingHoverIndex === index;
+                            
+                            return (
+                              <g key={`fs-${index}`}>
+                                {(isHovering || isDragging) && (
+                                  <circle cx={x} cy={y} r="8" fill="#10b981" opacity="0.2" />
+                                )}
+                                <circle
+                                  cx={x}
+                                  cy={y}
+                                  r={isDragging ? 7 : isHovering ? 6 : 5}
+                                  fill="#10b981"
+                                  stroke="#071321"
+                                  strokeWidth="2"
+                                  style={{ cursor: 'grab', transition: isDragging ? 'none' : 'r 0.2s ease' }}
+                                  onMouseDown={(e) => handleFuelSavingMouseDown(e, index)}
+                                  onMouseEnter={() => setFuelSavingHoverIndex(index)}
+                                  onMouseLeave={() => setFuelSavingHoverIndex(null)}
+                                />
+                                {(isHovering || isDragging) && (
+                                  <g>
+                                    <rect x={x - 45} y={y - 45} width="90" height="32" rx="4" fill="rgba(2, 11, 22, 0.95)" stroke="#10b981" strokeWidth="1" />
+                                    <text x={x} y={y - 28} fill="#10b981" fontSize="10" fontWeight="600" textAnchor="middle" style={{ userSelect: 'none' }}>
+                                      Lap {index + 1}
+                                    </text>
+                                    <text x={x} y={y - 15} fill="#10b981" fontSize="11" fontWeight="600" textAnchor="middle" style={{ userSelect: 'none' }}>
+                                      {formatLapTime(time)}
+                                    </text>
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          })}
                         </svg>
                       </div>
                     </div>
