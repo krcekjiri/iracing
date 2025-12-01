@@ -2292,7 +2292,9 @@ const PlannerApp = () => {
   }
   const sandboxDriverSwapTime = pitSandbox.driverSwap ? 25 : 0;
   const sandboxServiceTime = Math.max(sandboxFuelingTime, sandboxTireTime, sandboxDriverSwapTime);
-  const sandboxPitLaneDelta = Number(form.pitLaneDeltaSeconds) || 0;
+  const sandboxPitLaneDelta = pitSandbox?.pitLaneDelta !== undefined && pitSandbox?.pitLaneDelta !== '' 
+    ? Number(pitSandbox.pitLaneDelta) 
+    : (Number(form.pitLaneDeltaSeconds) || 0);
   const sandboxTotalPitTime = sandboxPitLaneDelta + sandboxServiceTime;
   const tiresDuringFueling = sandboxTireTime > 0 && sandboxTireTime <= sandboxFuelingTime;
   const driverSwapDuringFueling = sandboxDriverSwapTime > 0 && sandboxDriverSwapTime <= sandboxFuelingTime;
@@ -3038,7 +3040,9 @@ const PlannerApp = () => {
                 }
                 const sandboxDriverSwapTime = pitSandbox?.driverSwap ? 25 : 0;
                 const sandboxServiceTime = Math.max(sandboxFuelingTime, sandboxTireTime, sandboxDriverSwapTime);
-                const sandboxPitLaneDelta = Number(form?.pitLaneDeltaSeconds) || 0;
+                const sandboxPitLaneDelta = pitSandbox?.pitLaneDelta !== undefined && pitSandbox?.pitLaneDelta !== '' 
+                  ? Number(pitSandbox.pitLaneDelta) 
+                  : (Number(form?.pitLaneDeltaSeconds) || 0);
                 const sandboxTotalPitTime = sandboxPitLaneDelta + sandboxServiceTime;
                 // Compare all to bottleneck (sandboxServiceTime)
                 const fuelingWithinBottleneck = sandboxFuelingTime > 0 && sandboxFuelingTime <= sandboxServiceTime && sandboxServiceTime !== sandboxFuelingTime;
@@ -3085,7 +3089,17 @@ const PlannerApp = () => {
                     helpText="Liters requested during the stop."
                   />
                   
-                  {/* 4. Tire Change */}
+                  {/* 4. Pit Lane Delta */}
+                  <InputField
+                    label="Pit Lane Delta"
+                    suffix="s"
+                    type="number"
+                    value={pitSandbox?.pitLaneDelta !== undefined ? pitSandbox.pitLaneDelta : (form?.pitLaneDeltaSeconds || '')}
+                    onChange={(e) => updatePitSandbox('pitLaneDelta', e.target.value)}
+                    helpText="Time lost entering and exiting pit lane. Leave empty to use value from Setup tab."
+                  />
+                  
+                  {/* 5. Tire Change */}
                   <div style={{ marginTop: 8, padding: 12, background: 'rgba(56, 189, 248, 0.05)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
                     <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>Tire Change</h4>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
