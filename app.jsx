@@ -552,6 +552,447 @@ const SectionHeading = ({ title }) => (
   </div>
 );
 
+// ==================== STRATEGY TAB COMPONENTS ====================
+
+const StrategyTab = ({
+  form,
+  standardResult,
+  fuelSavingResult,
+  strategyConfigs,
+  selectedStrategy,
+  setSelectedStrategy,
+  strategyRecommendation,
+  reservePerStint,
+}) => {
+  // Get active result based on selected strategy
+  const activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
+  
+  // Calculate average lap times for display
+  const calculateAvgLaps = (result) => {
+    if (!result || result.errors?.length || !result.totalLaps) {
+      return { withoutPits: 0, withPits: 0 };
+    }
+    const timeOnTrack = result.totalRaceTimeWithStops - result.totalPitTime;
+    const avgLapWithoutPits = result.totalLaps > 0 && timeOnTrack > 0
+      ? timeOnTrack / result.totalLaps
+      : 0;
+    const totalTimeWithPits = result.totalRaceTimeWithStops + result.totalPitTime;
+    const avgLapWithPits = result.totalLaps > 0 && totalTimeWithPits > 0
+      ? totalTimeWithPits / result.totalLaps
+      : 0;
+    return { withoutPits: avgLapWithoutPits, withPits: avgLapWithPits };
+  };
+
+  // Format pit stop times
+  const formatPitStopTimes = (result) => {
+    if (!result?.stintPlan?.length) return 'No stops';
+    const stopTimes = result.stintPlan
+      .filter((stint, idx) => idx < result.stintPlan.length - 1)
+      .map(stint => stint.perStopLoss);
+    if (stopTimes.length === 0) return 'No stops';
+    const allSame = stopTimes.every(time => Math.abs(time - stopTimes[0]) < 0.1);
+    if (allSame) {
+      return `${roundTo(stopTimes[0], 1)}s × ${result.pitStops || 0} stops`;
+    }
+    return stopTimes.map((time) => `${roundTo(time, 1)}s`).join(' + ');
+  };
+
+  return (
+    <div className="tab-content">
+      <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          View calculated strategy plans for Standard and Fuel-Saving modes. Compare total laps, pit stops, and race times. Use the detailed stint planner to refine individual stints.
+        </p>
+      </div>
+
+      {/* Strategy Comparison Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 24 }}>
+        {strategyConfigs && strategyConfigs.length > 0 ? (
+          strategyConfigs
+            .filter(strategy => strategy && strategy.result)
+            .map((strategy) => {
+              const isOptimal = strategyRecommendation(strategy.key);
+              const preciseLapsValue = Number(strategy.result.decimalLaps || strategy.result.totalLaps || 0);
+              const avgLaps = calculateAvgLaps(strategy.result);
+              const isSelected = selectedStrategy === strategy.key;
+              
+              return (
+                <div 
+                  key={strategy.name} 
+                  className="card" 
+                  style={{ 
+                    borderTop: `4px solid ${strategy.color}`,
+                    border: isSelected ? `2px solid ${strategy.color}` : `1px solid var(--border)`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                    boxShadow: isSelected ? `0 8px 24px rgba(${strategy.color === '#1ea7ff' ? '30, 167, 255' : '16, 185, 129'}, 0.3)` : 'none',
+                  }}
+                  onClick={() => setSelectedStrategy(strategy.key)}
+                >
+                  <h3 style={{ marginBottom: 16, color: strategy.color, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {strategy.name} Strategy
+                    {!strategy.result.errors?.length && isOptimal && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          background: strategy.color,
+                          color: '#071321',
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                        title="Optimal Strategy"
+                      >
+                        ★
+                      </span>
+                    )}
+                  </h3>
+                  
+                  {strategy.result.errors?.length ? (
+                    <div className="callout">
+                      {strategy.result.errors.map((err) => (
+                        <div key={err}>{err}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <Stat
+                        label="Total Laps"
+                        value={`${Math.ceil(preciseLapsValue)} laps`}
+                        detail={`${preciseLapsValue.toFixed(2)} laps exact`}
+                      />
+                      <Stat
+                        label="Stints & Stops"
+                        value={`${strategy.result.stintCount} stints`}
+                        detail={`${strategy.result.pitStops} stops • ~${strategy.result.lapsPerStint} laps/stint`}
+                      />
+                      <Stat
+                        label="Total Pit Time"
+                        value={`${roundTo(strategy.result.totalPitTime, 1)} s`}
+                        detail={formatPitStopTimes(strategy.result)}
+                      />
+                      <Stat
+                        label="Total Fuel Consumed"
+                        value={`${roundTo(strategy.result.totalFuelWithReserve, 1)} L`}
+                        detail={`${roundTo(strategy.result.totalFuelNeeded, 1)} L base + ${((strategy.result.stintCount || 0) * reservePerStint).toFixed(1)} L reserve`}
+                      />
+                      <Stat
+                        label="Avg Lap (no pits)"
+                        value={avgLaps.withoutPits > 0 ? formatLapTime(avgLaps.withoutPits) : '--'}
+                        detail="Average lap time excluding pit stops"
+                      />
+                      <Stat
+                        label="Avg Lap (with pits)"
+                        value={avgLaps.withPits > 0 ? formatLapTime(avgLaps.withPits) : '--'}
+                        detail="Average lap time including pit stop time"
+                      />
+                    </>
+                  )}
+                </div>
+              );
+            })
+        ) : (
+          <div style={{ padding: '20px', color: 'var(--text-muted)' }}>
+            No strategy data available. Please check your setup parameters.
+          </div>
+        )}
+      </div>
+
+      {/* Detailed Stint Planner */}
+      {!activeResult.errors?.length && activeResult.stintPlan?.length > 0 ? (
+        <div className="card" style={{ padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3>Detailed Stint Planner - {selectedStrategy === 'standard' ? 'Standard' : 'Fuel-Saving'} Strategy</h3>
+            <span className="stat-label">
+              Fuel target capped at tank capacity ({form.tankCapacity || 0} L)
+            </span>
+          </div>
+          
+          {activeResult.minLapsWarning && (
+            <div className="callout" style={{ marginBottom: 16 }}>
+              Fuel window currently allows ~{activeResult.lapsPerStint} laps per stint, below your minimum target of{' '}
+              {form.minLapsPerStint || 0} laps.
+            </div>
+          )}
+          
+          <DetailedStintPlanner
+            plan={activeResult.stintPlan}
+            form={form}
+            reservePerStint={reservePerStint}
+            formationLapFuel={Number(form.formationLapFuel) || 0}
+            totalLaps={activeResult.totalLaps}
+          />
+          
+          <StrategyGraph plan={activeResult.stintPlan} perStopLoss={activeResult.perStopLoss} />
+        </div>
+      ) : activeResult.errors?.length ? (
+        <div className="card" style={{ padding: 24 }}>
+          <div className="callout">
+            {activeResult.errors.map((err) => (
+              <div key={err}>{err}</div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const DetailedStintPlanner = ({
+  plan,
+  form,
+  reservePerStint,
+  formationLapFuel,
+}) => {
+  const [stintPlan, setStintPlan] = useState(plan);
+  
+  useEffect(() => {
+    setStintPlan(plan);
+  }, [plan]);
+  
+  if (!stintPlan?.length) {
+    return <div className="empty-state">Enter race details to generate a stint plan.</div>;
+  }
+
+  // Recalculate stint plan when changes are made
+  const recalculateStintPlan = (updatedPlan) => {
+    const tankCapacity = safeNumber(form.tankCapacity) || 106;
+    const fuelPerLap = safeNumber(form.fuelPerLap) || 3.18;
+    const pitLaneDelta = safeNumber(form.pitLaneDeltaSeconds) || 27;
+    const lapSeconds = parseLapTime(form.averageLapTime) || 103.5;
+    
+    // Calculate laps completed in non-last stints
+    let completedLaps = 0;
+    const recalculated = updatedPlan.map((stint, idx) => {
+      const isLastStint = idx === updatedPlan.length - 1;
+      
+      // For last stint, calculate remaining laps to match total
+      if (isLastStint && totalLaps) {
+        const remainingLaps = Math.max(1, totalLaps - completedLaps);
+        return { ...stint, laps: remainingLaps };
+      }
+      
+      completedLaps += stint.laps;
+      return stint;
+    });
+    
+    // Now calculate fuel and pit stop details
+    let fuelInTank = tankCapacity;
+    
+    return recalculated.map((stint, idx) => {
+      const isFirstStint = idx === 0;
+      const isLastStint = idx === recalculated.length - 1;
+      
+      // Get pit stop config or use defaults
+      const pitStop = stint.pitStop || {
+        tireChange: { left: false, right: false, front: false, rear: false },
+        driverSwap: false,
+        pitWallSide: 'right',
+        fuelToAdd: 0,
+      };
+      
+      // Calculate fuel needed for this stint
+      const baseFuelNeeded = stint.laps * fuelPerLap + reservePerStint;
+      const fuelNeeded = isFirstStint && formationLapFuel > 0
+        ? Math.max(0, baseFuelNeeded - formationLapFuel)
+        : baseFuelNeeded;
+      const fuelUsed = Math.min(fuelNeeded, fuelInTank);
+      const fuelLeft = fuelInTank - fuelUsed;
+      
+      // Calculate fuel to add (if not last stint)
+      let fuelToAdd = pitStop.fuelToAdd;
+      if (fuelToAdd === undefined && !isLastStint) {
+        const nextStintFuelNeeded = updatedPlan[idx + 1].laps * fuelPerLap + reservePerStint;
+        fuelToAdd = Math.max(0, nextStintFuelNeeded - fuelLeft);
+        fuelToAdd = Math.min(fuelToAdd, tankCapacity);
+      } else if (fuelToAdd === undefined) {
+        fuelToAdd = 0;
+      }
+      
+      // Calculate pit stop times
+      const fuelingTime = fuelToAdd > 0 ? (fuelToAdd / tankCapacity) * 41.1 : 0;
+      
+      // Calculate tire service time
+      const pitWallIsRight = pitStop.pitWallSide === 'right';
+      const wallCorners = pitWallIsRight ? ['RF', 'RR'] : ['LF', 'LR'];
+      const frontCorners = ['LF', 'RF'];
+      const rearCorners = ['LR', 'RR'];
+      
+      const selectedCorners = {};
+      if (pitStop.tireChange.left) { selectedCorners['LF'] = true; selectedCorners['LR'] = true; }
+      if (pitStop.tireChange.right) { selectedCorners['RF'] = true; selectedCorners['RR'] = true; }
+      if (pitStop.tireChange.front) { selectedCorners['LF'] = true; selectedCorners['RF'] = true; }
+      if (pitStop.tireChange.rear) { selectedCorners['LR'] = true; selectedCorners['RR'] = true; }
+      
+      const selectedCornerKeys = Object.keys(selectedCorners);
+      const selectedCount = selectedCornerKeys.length;
+      
+      let tireServiceTime = 0;
+      if (selectedCount > 0) {
+        const frontsSelectedOnly = frontCorners.every((corner) => selectedCorners[corner]) && !rearCorners.some((corner) => selectedCorners[corner]);
+        const rearsSelectedOnly = rearCorners.every((corner) => selectedCorners[corner]) && !frontCorners.some((corner) => selectedCorners[corner]);
+        if (frontsSelectedOnly) {
+          tireServiceTime = 10.5;
+        } else if (rearsSelectedOnly) {
+          tireServiceTime = 12;
+        } else {
+          tireServiceTime = selectedCornerKeys.reduce((total, corner) => {
+            const wallCorner = wallCorners.includes(corner);
+            return total + (wallCorner ? 5.5 : 7);
+          }, 0);
+        }
+      }
+      
+      const driverSwapTime = pitStop.driverSwap ? 25 : 0;
+      const serviceTime = Math.max(fuelingTime, tireServiceTime, driverSwapTime);
+      const perStopLoss = !isLastStint ? pitLaneDelta + serviceTime : 0;
+      
+      // Update fuel in tank for next stint
+      fuelInTank = fuelLeft + fuelToAdd;
+      
+      // Calculate stint duration
+      const stintSeconds = stint.laps * lapSeconds;
+      
+      return {
+        ...stint,
+        fuel: fuelUsed,
+        fuelLeft: fuelLeft,
+        fuelToAdd: fuelToAdd,
+        fuelingTime: fuelingTime,
+        perStopLoss: perStopLoss,
+        stintDuration: stintSeconds,
+        pitStop: pitStop,
+      };
+    });
+  };
+
+  const handleStintLapsChange = (stintId, newLaps) => {
+    const updatedPlan = stintPlan.map(stint => {
+      if (stint.id === stintId) {
+        // Ensure last stint is not editable
+        const isLastStint = stint.id === stintPlan[stintPlan.length - 1].id;
+        if (isLastStint) return stint;
+        
+        const validLaps = Math.max(1, Math.min(parseInt(newLaps) || 1, 200));
+        return { ...stint, laps: validLaps };
+      }
+      return stint;
+    });
+    
+    // Recalculate all stints
+    const recalculated = recalculateStintPlan(updatedPlan);
+    setStintPlan(recalculated);
+  };
+
+  const handlePitStopChange = (stintId, pitStopData) => {
+    const updatedPlan = stintPlan.map(stint => {
+      if (stint.id === stintId) {
+        return { ...stint, pitStop: pitStopData };
+      }
+      return stint;
+    });
+    
+    const recalculated = recalculateStintPlan(updatedPlan);
+    setStintPlan(recalculated);
+  };
+
+  return (
+    <div className="stint-list">
+      {stintPlan.map((stint, idx) => {
+        const isFirstStint = idx === 0;
+        const isLastStint = idx === stintPlan.length - 1;
+        const nextStint = !isLastStint ? stintPlan[idx + 1] : null;
+        const usableFuel = Math.max(stint.fuel - reservePerStint - (isFirstStint ? formationLapFuel : 0), 0);
+        const fuelPerLapTarget = stint.laps ? usableFuel / stint.laps : 0;
+        const fuelAtStart = idx === 0 
+          ? roundTo(safeNumber(form.tankCapacity) || 106, 1)
+          : roundTo((stintPlan[idx - 1]?.fuelLeft || 0) + (stintPlan[idx - 1]?.fuelToAdd || 0), 1);
+
+        return (
+          <div key={stint.id} style={{ display: 'contents' }}>
+            <div className="stint-item">
+              <div>
+                <strong>Stint {stint.id}</strong>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '4px' }}>
+                  Fuel at Start: {fuelAtStart} L
+                </div>
+                <div className="stint-meta">
+                  <span>
+                    Laps {stint.startLap}–{stint.endLap} ({stint.laps} lap{stint.laps > 1 ? 's' : ''})
+                  </span>
+                  <span>{formatDuration(stint.stintDuration)}</span>
+                </div>
+                {!isLastStint && (
+                  <div style={{ marginTop: 8 }}>
+                    <label className="field-label" style={{ fontSize: '0.75rem', marginBottom: 2, display: 'block' }}>
+                      Laps
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="200"
+                      value={stint.laps}
+                      onChange={(e) => handleStintLapsChange(stint.id, e.target.value)}
+                      style={{ 
+                        width: '60px', 
+                        padding: '4px 6px', 
+                        fontSize: '0.75rem',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '4px',
+                        color: 'var(--text)',
+                      }}
+                    />
+                  </div>
+                )}
+                {isLastStint && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    (Auto-adjusted to complete race)
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span className="stat-label">Fuel Target / Lap</span>
+                <div className="stat-value" style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                  {fuelPerLapTarget.toFixed(2)} L
+                  <span className="help-badge" tabIndex={0}>
+                    <span className="help-icon" style={{ fontSize: '0.7rem' }}>ℹ</span>
+                    <span className="help-tooltip">
+                      Target fuel consumption per lap. {isFirstStint && formationLapFuel > 0 ? `Formation lap fuel (${roundTo(formationLapFuel, 1)} L) is already accounted for in this calculation.` : 'Based on usable fuel and number of laps.'}
+                    </span>
+                  </span>
+                </div>
+                {stint.fuelLeft !== undefined && (
+                  <div className="stat-label" style={{ marginTop: 4, color: 'var(--text-muted)' }}>
+                    Fuel Left: {roundTo(stint.fuelLeft, 1)} L
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Pit Stop Interface (between stints) */}
+            {!isLastStint && nextStint && (
+              <PitStopInterface
+                stint={stint}
+                nextStint={nextStint}
+                form={form}
+                onPitStopChange={(pitStopData) => handlePitStopChange(stint.id, pitStopData)}
+                pitStopIndex={stint.id}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const StrategyGraph = ({ plan, perStopLoss }) => {
   if (!plan?.length) return null;
 
@@ -2659,203 +3100,16 @@ const PlannerApp = () => {
 
 
       {activeTab === 'strategy' && (
-        <div className="tab-content">
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              View calculated strategy plans for Standard and Fuel-Saving modes. Compare total laps, pit stops, and race times. Use the detailed stint planner to refine individual stints.
-            </p>
-          </div>
-          {(() => {
-            try {
-              return (
-                <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 24 }}>
-                  {strategyConfigs && strategyConfigs.length > 0 ? (
-                    strategyConfigs
-                      .filter(strategy => strategy && strategy.result)
-                      .map((strategy) => {
-                        const badgeLabel = strategyRecommendation(strategy.key);
-                        const preciseLapsValue = Number(strategy.result.decimalLaps || strategy.result.totalLaps || 0);
-                        // Calculate average lap times
-                        // Average lap without pits = time on track only (excluding pit stops) / laps
-                        const timeOnTrack = strategy.result.totalRaceTimeWithStops - strategy.result.totalPitTime;
-                        const avgLapWithoutPits = strategy.result.totalLaps > 0 && timeOnTrack > 0
-                          ? timeOnTrack / strategy.result.totalLaps
-                          : 0;
-                        // Average lap with pits = (total race time + pit stop time) / laps
-                        // Pit stop time is added to overall distance
-                        const totalTimeWithPits = strategy.result.totalRaceTimeWithStops + strategy.result.totalPitTime;
-                        const avgLapWithPits = strategy.result.totalLaps > 0 && totalTimeWithPits > 0
-                          ? totalTimeWithPits / strategy.result.totalLaps
-                          : 0;
-                        return (
-                          <div 
-                            key={strategy.name} 
-                            className="card" 
-                            style={{ 
-                              borderTop: `4px solid ${strategy.color}`,
-                              border: selectedStrategy === strategy.key ? `2px solid ${strategy.color}` : `1px solid var(--border)`,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              transform: selectedStrategy === strategy.key ? 'scale(1.02)' : 'scale(1)',
-                              boxShadow: selectedStrategy === strategy.key ? `0 8px 24px rgba(${strategy.color === '#1ea7ff' ? '30, 167, 255' : strategy.color === '#10b981' ? '16, 185, 129' : '245, 158, 11'}, 0.3)` : 'none',
-                            }}
-                            onClick={() => setSelectedStrategy(strategy.key)}
-                          >
-                            <h3 style={{ marginBottom: 16, color: strategy.color, display: 'flex', alignItems: 'center', gap: 8 }}>
-                              {strategy.name} Strategy
-                              {!strategy.result.errors?.length && badgeLabel && (
-                                <span
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: 20,
-                                    height: 20,
-                                    borderRadius: '50%',
-                                    background: strategy.color,
-                                    color: '#071321',
-                                    fontSize: '0.65rem',
-                                    fontWeight: 700,
-                                    flexShrink: 0,
-                                  }}
-                                  title="Optimal Strategy"
-                                >
-                                  ★
-                                </span>
-                              )}
-                            </h3>
-                            {strategy.result.errors?.length ? (
-                              <div className="callout">
-                                {strategy.result.errors.map((err) => (
-                                  <div key={err}>{err}</div>
-                                ))}
-                              </div>
-                            ) : (
-                              <>
-                                <Stat
-                                  label="Total Laps"
-                                  value={`${Math.ceil(preciseLapsValue)} laps`}
-                                  detail={`${preciseLapsValue.toFixed(2)} laps exact`}
-                                />
-                                <Stat
-                                  label="Stints & Stops"
-                                  value={`${strategy.result.stintCount} stints`}
-                                  detail={`${strategy.result.pitStops} stops • ~${strategy.result.lapsPerStint} laps/stint`}
-                                />
-                                <Stat
-                                  label="Total Pit Time"
-                                  value={`${roundTo(strategy.result.totalPitTime, 1)} s`}
-                                  detail={(() => {
-                                    // Get all stop times from stint plan (excluding last stint which has no stop)
-                                    const stopTimes = strategy.result.stintPlan
-                                      .filter((stint, idx) => idx < strategy.result.stintPlan.length - 1)
-                                      .map(stint => stint.perStopLoss);
-                                    
-                                    // Check if all stops have the same time (within 0.1s tolerance)
-                                    const allSame = stopTimes.length > 0 && stopTimes.every(time => Math.abs(time - stopTimes[0]) < 0.1);
-                                    
-                                    if (allSame && stopTimes.length > 0) {
-                                      // All stops are the same - show as before
-                                      return `${roundTo(stopTimes[0], 1)}s × ${strategy.result.pitStops || 0} stops`;
-                                    } else if (stopTimes.length > 0) {
-                                      // Stops differ - show individual times
-                                      return stopTimes.map((time, idx) => `${roundTo(time, 1)}s`).join(' + ');
-                                    } else {
-                                      return 'No stops';
-                                    }
-                                  })()}
-                                />
-                                <Stat
-                                  label="Total Fuel Consumed"
-                                  value={`${roundTo(strategy.result.totalFuelWithReserve, 1)} L`}
-                                  detail={`${roundTo(strategy.result.totalFuelNeeded, 1)} L base + ${( (strategy.result.stintCount || 0) * reservePerStint).toFixed(1)} L reserve`}
-                                />
-                                <Stat
-                                  label="Avg Lap (no pits)"
-                                  value={avgLapWithoutPits > 0 ? formatLapTime(avgLapWithoutPits) : '--'}
-                                  detail="Average lap time excluding pit stops"
-                                />
-                                <Stat
-                                  label="Avg Lap (with pits)"
-                                  value={avgLapWithPits > 0 ? formatLapTime(avgLapWithPits) : '--'}
-                                  detail="Average lap time including pit stop time"
-                                />
-                              </>
-                            )}
-                          </div>
-                        );
-                      })
-                  ) : (
-                    <div style={{ padding: '20px', color: 'var(--text-muted)' }}>
-                      No strategy data available. Please check your setup parameters.
-                    </div>
-                  )}
-                </div>
-
-                <div className="card" style={plannerCardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3>Detailed Stint Planner - {selectedStrategy === 'standard' ? 'Standard' : 'Fuel-Saving'} Strategy</h3>
-          {(() => {
-            const activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
-            return !activeResult.errors?.length && (
-              <span className="stat-label">
-                Fuel target capped at tank capacity ({form.tankCapacity || 0} L)
-              </span>
-            );
-          })()}
-        </div>
-        {(() => {
-          const activeResult = selectedStrategy === 'standard' ? standardResult : selectedStrategy === 'fuel-saving' ? fuelSavingResult : pushResult;
-          return !activeResult.errors?.length && activeResult.minLapsWarning ? (
-            <div className="callout" style={{ marginBottom: 16 }}>
-              Fuel window currently allows ~{activeResult.lapsPerStint} laps per stint, below your minimum target of{' '}
-              {form.minLapsPerStint || 0} laps.
-            </div>
-          ) : null;
-        })()}
-        {(() => {
-          const activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
-          const ReorderableStintPlanCard = () => {
-            const [reorderedStints, setReorderedStints] = useState(activeResult.errors?.length ? [] : activeResult.stintPlan);
-            
-            useEffect(() => {
-              setReorderedStints(activeResult.errors?.length ? [] : activeResult.stintPlan);
-            }, [activeResult.stintPlan, activeResult.errors]);
-            
-            return (
-              <>
-              <StintPlanCard
-                plan={reorderedStints}
-                reservePerStint={reservePerStint}
-                formationLapFuel={Number(form.formationLapFuel) || 0}
-                form={form}
-                onReorder={(newPlan) => {
-                  setReorderedStints(newPlan);
-                }}
-              />
-                {!activeResult.errors?.length && reorderedStints.length > 0 && (
-                  <StrategyGraph plan={reorderedStints} perStopLoss={activeResult.perStopLoss} />
-                )}
-              </>
-            );
-          };
-          
-          return <ReorderableStintPlanCard />;
-        })()}
-                </div>
-              </>
-              );
-            } catch (error) {
-              console.error('Strategy tab error:', error);
-              return (
-                <div style={{ padding: '20px', color: 'var(--danger)' }}>
-                  Error loading strategy tab: {error.message || String(error)}. Please check the browser console for details.
-                </div>
-              );
-            }
-          })()}
-        </div>
+        <StrategyTab
+          form={form}
+          standardResult={standardResult}
+          fuelSavingResult={fuelSavingResult}
+          strategyConfigs={strategyConfigs}
+          selectedStrategy={selectedStrategy}
+          setSelectedStrategy={setSelectedStrategy}
+          strategyRecommendation={strategyRecommendation}
+          reservePerStint={reservePerStint}
+        />
       )}
 
       {activeTab === 'schedule' && (
