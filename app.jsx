@@ -2,15 +2,15 @@ const { useState, useMemo, useRef, useEffect } = React;
 
 const defaultForm = {
   raceDurationMinutes: 180,
-  averageLapTime: '02:03.900',
+  averageLapTime: '01:43.500',
   fuelPerLap: 3.43,
-  fuelSavingLapTime: '02:04.200',
+  fuelSavingLapTime: '01:43.900',
   fuelSavingFuelPerLap: 3.32,
-  tankCapacity: 100,
+  tankCapacity: 106,
   fuelReserveLiters: 0.3,
-  pitLaneDeltaSeconds: 23,
-  stationaryServiceSeconds: 41,
-  formationLapFuel: 1,
+  pitLaneDeltaSeconds: 27,
+  stationaryServiceSeconds: 42,
+  formationLapFuel: 1.5,
   minLapsPerStint: '',
   maxLapsPerStint: '',
 };
@@ -71,6 +71,21 @@ const formatLapTimeRounded = (seconds) => {
 
 const safeNumber = (value) =>
   value === '' || Number.isNaN(Number(value)) ? null : Number(value);
+
+// Get timezone acronym
+const getTimezoneAcronym = (timezone) => {
+  const acronyms = {
+    'UTC': 'UTC',
+    'Europe/London': 'GMT',
+    'America/New_York': 'EST',
+    'America/Los_Angeles': 'PST',
+    'Europe/Paris': 'CET',
+    'Europe/Berlin': 'CET',
+    'Asia/Tokyo': 'JST',
+    'Australia/Sydney': 'AEST',
+  };
+  return acronyms[timezone] || timezone.split('/').pop().substring(0, 3).toUpperCase();
+};
 
 // Timezone and time conversion utilities
 const getTimezoneOffset = (timezone) => {
@@ -1355,7 +1370,7 @@ const ScheduleSummary = ({
                 </div>
                 <div>
                   <div className="stat-label" style={{ marginBottom: 2, fontSize: '0.7rem' }}>
-                    Start ({item.driver?.timezone || 'UTC'})
+                    Start ({getTimezoneAcronym(item.driver?.timezone || 'UTC')})
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#f4f6fb' }}>
                     {formatDateTime(item.startTime, item.driver?.timezone || 'UTC')}
@@ -1379,7 +1394,7 @@ const ScheduleSummary = ({
                 </div>
                 <div>
                   <div className="stat-label" style={{ marginBottom: 2, fontSize: '0.7rem' }}>
-                    End ({item.driver?.timezone || 'UTC'})
+                    End ({getTimezoneAcronym(item.driver?.timezone || 'UTC')})
                   </div>
                   <div style={{ 
                     fontSize: '0.75rem', 
@@ -1957,13 +1972,13 @@ const PlannerApp = () => {
           className={activeTab === 'lap-times' ? 'active' : ''}
           onClick={() => setActiveTab('lap-times')}
         >
-          Stint Modelling
+          Stint Model
         </button>
         <button
           className={activeTab === 'sandbox' ? 'active' : ''}
           onClick={() => setActiveTab('sandbox')}
         >
-          Pit Stop Modelling
+          Pit Calculator
         </button>
         <button
           className={activeTab === 'fuel-calculator' ? 'active' : ''}
@@ -2724,22 +2739,40 @@ const PlannerApp = () => {
                   const baselineLapSeconds = parseLapTime(stintModelling.baselineLapTime) || 124;
                   const numLaps = parseInt(stintModelling.numLaps) || 30;
                   
-                  // Default tyre warming penalties: 4s lap 1, 2s lap 2, 1s lap 3
-                  const tyreWarmingPenalties = [4, 2, 1];
+                  // Default tyre warming penalties: 3s lap 1, 1.5s lap 2, 0.5s lap 3
+                  const tyreWarmingPenalties = [3, 1.5, 0.5];
                   
                   // Generate default lap times
                   const generateDefaultLapTimes = () => {
                     const times = [];
+                    const midLap = Math.ceil(numLaps / 2);
+                    
                     for (let lap = 1; lap <= numLaps; lap++) {
                       let baseTime = baselineLapSeconds;
+                      
                       // Apply tyre warming penalties for first 3 laps
                       if (lap <= tyreWarmingPenalties.length) {
                         baseTime += tyreWarmingPenalties[lap - 1];
                       }
-                      // Make lap 3 slower (inlap) - already has 1s penalty, add 0.5s more
+                      
+                      // Make lap 3 slower (inlap) - already has 0.5s penalty, add 0.5s more
                       if (lap === 3) {
                         baseTime += 0.5;
                       }
+                      
+                      // Model laps around middle: before mid is slower, after mid is faster
+                      // Baseline is the middle lap
+                      if (lap < midLap) {
+                        // Before middle: slower by 0.1% per lap away from middle
+                        const lapsFromMid = midLap - lap;
+                        baseTime = baseTime * (1 + (lapsFromMid * 0.001));
+                      } else if (lap > midLap) {
+                        // After middle: faster by 0.1% per lap away from middle
+                        const lapsFromMid = lap - midLap;
+                        baseTime = baseTime * (1 - (lapsFromMid * 0.001));
+                      }
+                      // lap === midLap stays at baseline
+                      
                       times.push(baseTime);
                     }
                     return times;
@@ -2843,12 +2876,31 @@ const PlannerApp = () => {
                       {/* Input fields */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 24 }}>
                         <div>
-                          <label className="field-label">Baseline Average Lap Time</label>
+                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            Baseline Average Lap Time
+                            <span 
+                              title="Target average lap time for this stint. This will be the middle lap time, with earlier laps slower and later laps faster."
+                              style={{ 
+                                cursor: 'help', 
+                                color: 'var(--text-muted)', 
+                                fontSize: '0.85rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                border: '1px solid var(--text-muted)'
+                              }}
+                            >
+                              ?
+                            </span>
+                          </label>
                           <input
                             type="text"
                             placeholder="MM:SS.sss"
                             value={stintModelling.baselineLapTime}
-                            onChange={(e) => setStintModelling(prev => ({ ...prev, baselineLapTime: e.target.value }))}
+                            onInput={(e) => setStintModelling(prev => ({ ...prev, baselineLapTime: e.target.value }))}
                             style={{
                               width: '100%',
                               padding: '8px 12px',
@@ -2859,14 +2911,32 @@ const PlannerApp = () => {
                               fontSize: '0.9rem',
                             }}
                           />
-                          <div className="field-help">Target average lap time for this stint</div>
                         </div>
                         <div>
-                          <label className="field-label">Number of Laps</label>
+                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            Number of Laps
+                            <span 
+                              title="Total laps in this stint. The baseline lap time will be the middle lap, with earlier laps slower and later laps faster by 0.1% per lap."
+                              style={{ 
+                                cursor: 'help', 
+                                color: 'var(--text-muted)', 
+                                fontSize: '0.85rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                border: '1px solid var(--text-muted)'
+                              }}
+                            >
+                              ?
+                            </span>
+                          </label>
                           <input
                             type="number"
                             value={stintModelling.numLaps}
-                            onChange={(e) => setStintModelling(prev => ({ ...prev, numLaps: e.target.value }))}
+                            onInput={(e) => setStintModelling(prev => ({ ...prev, numLaps: e.target.value }))}
                             style={{
                               width: '100%',
                               padding: '8px 12px',
@@ -2877,7 +2947,6 @@ const PlannerApp = () => {
                               fontSize: '0.9rem',
                             }}
                           />
-                          <div className="field-help">Total laps in this stint</div>
                         </div>
                       </div>
                       
