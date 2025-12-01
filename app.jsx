@@ -3,9 +3,9 @@ const { useState, useMemo, useRef, useEffect } = React;
 const defaultForm = {
   raceDurationMinutes: 180,
   averageLapTime: '01:43.500',
-  fuelPerLap: 3.43,
+  fuelPerLap: 3.18,
   fuelSavingLapTime: '01:43.900',
-  fuelSavingFuelPerLap: 3.32,
+  fuelSavingFuelPerLap: 3.07,
   tankCapacity: 106,
   fuelReserveLiters: 0.3,
   pitLaneDeltaSeconds: 27,
@@ -642,16 +642,71 @@ const StintPlanCard = ({
   plan,
   reservePerStint = 0,
   formationLapFuel = 0,
+  onReorder,
 }) => {
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [reorderedPlan, setReorderedPlan] = useState(plan);
+  
+  useEffect(() => {
+    setReorderedPlan(plan);
+  }, [plan]);
+  
   if (!plan?.length) {
     return <div className="empty-state">Enter race details to generate a stint plan.</div>;
   }
 
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target.outerHTML);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    
+    const newPlan = [...reorderedPlan];
+    const [removed] = newPlan.splice(draggedIndex, 1);
+    newPlan.splice(dropIndex, 0, removed);
+    
+    // Update IDs to reflect new order
+    newPlan.forEach((stint, idx) => {
+      stint.id = idx + 1;
+    });
+    
+    setReorderedPlan(newPlan);
+    if (onReorder) {
+      onReorder(newPlan);
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
   return (
     <div className="stint-list">
-      {plan.map((stint, idx) => {
-        const isFirstStint = stint.id === 1;
-        const isLastStint = idx === plan.length - 1;
+      {reorderedPlan.map((stint, idx) => {
+        const isFirstStint = idx === 0;
+        const isLastStint = idx === reorderedPlan.length - 1;
         const usableFuel = Math.max(stint.fuel - reservePerStint - (isFirstStint ? formationLapFuel : 0), 0);
         const fuelPerLapTarget = stint.laps ? usableFuel / stint.laps : 0;
         const perLapDisplay = fuelPerLapTarget.toFixed(2);
@@ -660,6 +715,17 @@ const StintPlanCard = ({
         <div
           className="stint-item"
           key={stint.id}
+          draggable
+          onDragStart={(e) => handleDragStart(e, idx)}
+          onDragOver={(e) => handleDragOver(e, idx)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, idx)}
+          onDragEnd={handleDragEnd}
+          style={{
+            cursor: 'move',
+            opacity: draggedIndex === idx ? 0.5 : 1,
+            borderTop: dragOverIndex === idx && draggedIndex !== idx ? '2px solid var(--accent)' : 'none',
+          }}
         >
           <div>
             <strong>Stint {stint.id}</strong>
@@ -1617,30 +1683,97 @@ const ScheduleSummary = ({
 };
 
 const PlannerApp = () => {
-  const [form, setForm] = useState(defaultForm);
-  const [drivers, setDrivers] = useState(() => [
+  // Load from localStorage or use defaults
+  const loadFromStorage = (key, defaultValue) => {
+    try {
+      const stored = localStorage.getItem(`iracing-planner-${key}`);
+      return stored ? JSON.parse(stored) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  };
+  
+  const saveToStorage = (key, value) => {
+    try {
+      localStorage.setItem(`iracing-planner-${key}`, JSON.stringify(value));
+    } catch (err) {
+      console.error('Failed to save to localStorage:', err);
+    }
+  };
+  
+  const [form, setForm] = useState(() => loadFromStorage('form', defaultForm));
+  const [drivers, setDrivers] = useState(() => loadFromStorage('drivers', [
     { id: Date.now(), name: 'John', timezone: 'UTC', color: '#0ea5e9' },
     { id: Date.now() + 1, name: 'Jack', timezone: 'UTC', color: '#8b5cf6' },
-  ]);
-  const [raceStartGMTTime, setRaceStartGMTTime] = useState('12:00:00');
-  const [raceStartGameTime, setRaceStartGameTime] = useState('08:00:00');
-  const [delayTime, setDelayTime] = useState('44:00');
-  const [fuelCalc, setFuelCalc] = useState({
+  ]));
+  const [raceStartGMTTime, setRaceStartGMTTime] = useState(() => loadFromStorage('raceStartGMTTime', '12:00:00'));
+  const [raceStartGameTime, setRaceStartGameTime] = useState(() => loadFromStorage('raceStartGameTime', '08:00:00'));
+  const [delayTime, setDelayTime] = useState(() => loadFromStorage('delayTime', '44:00'));
+  const [fuelCalc, setFuelCalc] = useState(() => loadFromStorage('fuelCalc', {
     fuelRemaining: '',
     targetLaps: '',
     fuelReserve: '0.3',
-  });
+  }));
   const [delayInputMode, setDelayInputMode] = useState('manual'); // 'manual' or 'log'
-  const [stintActualEndTimes, setStintActualEndTimes] = useState({});
-  const [stintModelling, setStintModelling] = useState({
+  const [stintActualEndTimes, setStintActualEndTimes] = useState(() => loadFromStorage('stintActualEndTimes', {}));
+  const [stintModelling, setStintModelling] = useState(() => loadFromStorage('stintModelling', {
     baselineLapTime: '02:04.000',
     numLaps: 30,
-  });
-  const [stintActualLaps, setStintActualLaps] = useState({});
-  const [stintDrivers, setStintDrivers] = useState({});
-  const [stintLapModes, setStintLapModes] = useState({});
+    standardLapTime: '',
+    standardLaps: '',
+    fuelSavingLapTime: '',
+    fuelSavingLaps: '',
+  }));
+  const [stintActualLaps, setStintActualLaps] = useState(() => loadFromStorage('stintActualLaps', {}));
+  const [stintDrivers, setStintDrivers] = useState(() => loadFromStorage('stintDrivers', {}));
+  const [stintLapModes, setStintLapModes] = useState(() => loadFromStorage('stintLapModes', {}));
   const [stintEndInputModes, setStintEndInputModes] = useState({}); // 'manual' or 'log' per stint
   const [stintReplayTimestamps, setStintReplayTimestamps] = useState({}); // Store replay timestamp input per stint
+  
+  // Save to localStorage whenever state changes
+  useEffect(() => {
+    saveToStorage('form', form);
+  }, [form]);
+  
+  useEffect(() => {
+    saveToStorage('drivers', drivers);
+  }, [drivers]);
+  
+  useEffect(() => {
+    saveToStorage('raceStartGMTTime', raceStartGMTTime);
+  }, [raceStartGMTTime]);
+  
+  useEffect(() => {
+    saveToStorage('raceStartGameTime', raceStartGameTime);
+  }, [raceStartGameTime]);
+  
+  useEffect(() => {
+    saveToStorage('delayTime', delayTime);
+  }, [delayTime]);
+  
+  useEffect(() => {
+    saveToStorage('fuelCalc', fuelCalc);
+  }, [fuelCalc]);
+  
+  useEffect(() => {
+    saveToStorage('stintActualEndTimes', stintActualEndTimes);
+  }, [stintActualEndTimes]);
+  
+  useEffect(() => {
+    saveToStorage('stintActualLaps', stintActualLaps);
+  }, [stintActualLaps]);
+  
+  useEffect(() => {
+    saveToStorage('stintDrivers', stintDrivers);
+  }, [stintDrivers]);
+  
+  useEffect(() => {
+    saveToStorage('stintLapModes', stintLapModes);
+  }, [stintLapModes]);
+  
+  useEffect(() => {
+    saveToStorage('stintModelling', stintModelling);
+  }, [stintModelling]);
   const [activeTab, setActiveTab] = useState('setup');
   const [selectedStrategy, setSelectedStrategy] = useState('standard');
   const [pitSandbox, setPitSandbox] = useState({
@@ -1945,7 +2078,6 @@ const PlannerApp = () => {
       <header className="header">
         <div>
           <h1>iRacing Endurance Planner</h1>
-          <p>Dial in GT endurance strategy with live fuel, stint, and pit insights.</p>
         </div>
       </header>
 
@@ -2257,13 +2389,26 @@ const PlannerApp = () => {
         })()}
         {(() => {
           const activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
-          return (
-            <StintPlanCard
-              plan={activeResult.errors?.length ? [] : activeResult.stintPlan}
-              reservePerStint={reservePerStint}
-              formationLapFuel={Number(form.formationLapFuel) || 0}
-            />
-          );
+          const ReorderableStintPlanCard = () => {
+            const [reorderedStints, setReorderedStints] = useState(activeResult.errors?.length ? [] : activeResult.stintPlan);
+            
+            useEffect(() => {
+              setReorderedStints(activeResult.errors?.length ? [] : activeResult.stintPlan);
+            }, [activeResult.stintPlan, activeResult.errors]);
+            
+            return (
+              <StintPlanCard
+                plan={reorderedStints}
+                reservePerStint={reservePerStint}
+                formationLapFuel={Number(form.formationLapFuel) || 0}
+                onReorder={(newPlan) => {
+                  setReorderedStints(newPlan);
+                }}
+              />
+            );
+          };
+          
+          return <ReorderableStintPlanCard />;
         })()}
         {(() => {
           const activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
@@ -2735,23 +2880,25 @@ const PlannerApp = () => {
             {(() => {
               try {
                 const StintGraph = () => {
-                  // Parse baseline lap time
-                  const baselineLapSeconds = parseLapTime(stintModelling.baselineLapTime) || 124;
-                  const numLaps = parseInt(stintModelling.numLaps) || 30;
+                  // Get values from Setup tab, but allow overriding
+                  const standardLapTime = parseLapTime(stintModelling.standardLapTime || form.averageLapTime) || 103.5;
+                  const fuelSavingLapTime = parseLapTime(stintModelling.fuelSavingLapTime || form.fuelSavingLapTime) || 103.9;
+                  const standardLaps = parseInt(stintModelling.standardLaps || '') || 0;
+                  const fuelSavingLaps = parseInt(stintModelling.fuelSavingLaps || '') || 0;
                   
-                  // Default tyre warming penalties: 3s lap 1, 1.5s lap 2, 0.5s lap 3
-                  const tyreWarmingPenalties = [3, 1.5, 0.5];
+                  // Tyre warming penalties relative to lap 4: lap 1 = +3, lap 2 = +1.5, lap 3 = +0.5, lap 4 = baseline
+                  const tyreWarmingPenalties = [3, 1.5, 0.5]; // Applied to laps 1, 2, 3
                   
-                  // Generate default lap times
-                  const generateDefaultLapTimes = () => {
+                  // Generate default lap times for a strategy
+                  const generateDefaultLapTimes = (baseline, laps) => {
                     const times = [];
-                    const midLap = Math.ceil(numLaps / 2);
+                    const midLap = Math.ceil(laps / 2);
                     
-                    for (let lap = 1; lap <= numLaps; lap++) {
-                      let baseTime = baselineLapSeconds;
+                    for (let lap = 1; lap <= laps; lap++) {
+                      let baseTime = baseline;
                       
-                      // Apply tyre warming penalties for first 3 laps
-                      if (lap <= tyreWarmingPenalties.length) {
+                      // Apply tyre warming penalties for first 3 laps (relative to lap 4)
+                      if (lap <= 3) {
                         baseTime += tyreWarmingPenalties[lap - 1];
                       }
                       
@@ -2763,13 +2910,13 @@ const PlannerApp = () => {
                       // Model laps around middle: before mid is slower, after mid is faster
                       // Baseline is the middle lap
                       if (lap < midLap) {
-                        // Before middle: slower by 0.1% per lap away from middle
+                        // Before middle: slower by 0.05% per lap away from middle
                         const lapsFromMid = midLap - lap;
-                        baseTime = baseTime * (1 + (lapsFromMid * 0.001));
+                        baseTime = baseTime * (1 + (lapsFromMid * 0.0005));
                       } else if (lap > midLap) {
-                        // After middle: faster by 0.1% per lap away from middle
+                        // After middle: faster by 0.05% per lap away from middle
                         const lapsFromMid = lap - midLap;
-                        baseTime = baseTime * (1 - (lapsFromMid * 0.001));
+                        baseTime = baseTime * (1 - (lapsFromMid * 0.0005));
                       }
                       // lap === midLap stays at baseline
                       
@@ -2778,78 +2925,66 @@ const PlannerApp = () => {
                     return times;
                   };
                   
-                  const [lapTimes, setLapTimes] = useState(generateDefaultLapTimes);
-                  const defaultLapTimes = useMemo(() => generateDefaultLapTimes(), [baselineLapSeconds, numLaps]);
+                  // Generate lap times for both strategies
+                  const standardLapTimes = useMemo(() => {
+                    if (!standardLaps || standardLaps <= 0) return [];
+                    return generateDefaultLapTimes(standardLapTime, standardLaps);
+                  }, [standardLapTime, standardLaps]);
                   
-                  // Update lap times when inputs change
+                  const fuelSavingLapTimes = useMemo(() => {
+                    if (!fuelSavingLaps || fuelSavingLaps <= 0) return [];
+                    return generateDefaultLapTimes(fuelSavingLapTime, fuelSavingLaps);
+                  }, [fuelSavingLapTime, fuelSavingLaps]);
+                  
+                  const [standardLapTimesState, setStandardLapTimesState] = useState(standardLapTimes);
+                  const [fuelSavingLapTimesState, setFuelSavingLapTimesState] = useState(fuelSavingLapTimes);
+                  
+                  // Update when inputs change
                   useEffect(() => {
-                    setLapTimes(generateDefaultLapTimes());
-                  }, [baselineLapSeconds, numLaps]);
+                    setStandardLapTimesState(standardLapTimes);
+                  }, [standardLapTimes]);
                   
-                  const resetToDefault = () => {
-                    setLapTimes([...defaultLapTimes]);
-                  };
+                  useEffect(() => {
+                    setFuelSavingLapTimesState(fuelSavingLapTimes);
+                  }, [fuelSavingLapTimes]);
                   
-                  const [draggingIndex, setDraggingIndex] = useState(null);
-                  const [hoverIndex, setHoverIndex] = useState(null);
-                  const svgRef = useRef(null);
-
-                  // Calculate graph dimensions and scales
+                  // Calculate metrics
+                  const standardTotalTime = standardLapTimesState.reduce((sum, time) => sum + time, 0);
+                  const standardAvgLap = standardLaps > 0 ? standardTotalTime / standardLaps : 0;
+                  
+                  const fuelSavingTotalTime = fuelSavingLapTimesState.reduce((sum, time) => sum + time, 0);
+                  const fuelSavingAvgLap = fuelSavingLaps > 0 ? fuelSavingTotalTime / fuelSavingLaps : 0;
+                  
+                  // Graph dimensions
                   const padding = { top: 40, right: 40, bottom: 50, left: 60 };
                   const width = 800;
                   const height = 400;
                   const graphWidth = width - padding.left - padding.right;
                   const graphHeight = height - padding.top - padding.bottom;
-
-                  const minTime = Math.min(...lapTimes) * 0.98;
-                  const maxTime = Math.max(...lapTimes) * 1.02;
+                  
+                  // Calculate min/max for both lines
+                  const allTimes = [...standardLapTimesState, ...fuelSavingLapTimesState];
+                  const minTime = allTimes.length > 0 ? Math.min(...allTimes) * 0.98 : 100;
+                  const maxTime = allTimes.length > 0 ? Math.max(...allTimes) * 1.02 : 110;
                   const timeRange = maxTime - minTime;
-
-                  const scaleX = (lapIndex) => padding.left + (lapIndex / (numLaps - 1 || 1)) * graphWidth;
+                  
+                  const maxLaps = Math.max(standardLaps, fuelSavingLaps);
+                  
+                  const scaleX = (lapIndex) => padding.left + (lapIndex / (maxLaps - 1 || 1)) * graphWidth;
                   const scaleY = (time) => padding.top + graphHeight - ((time - minTime) / timeRange) * graphHeight;
-
-                  // Generate line path
-                  const linePath = lapTimes.map((time, index) => {
+                  
+                  // Generate line paths
+                  const standardLinePath = standardLapTimesState.map((time, index) => {
                     const x = scaleX(index);
                     const y = scaleY(time);
                     return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
                   }).join(' ');
-
-                  const handleMouseDown = (e, index) => {
-                    e.preventDefault();
-                    setDraggingIndex(index);
-                  };
-
-                  const handleMouseMove = (e) => {
-                    if (draggingIndex === null) return;
-                    
-                    const svg = svgRef.current;
-                    if (!svg) return;
-                    
-                    const rect = svg.getBoundingClientRect();
-                    const y = e.clientY - rect.top;
-                    
-                    // Convert Y to time (only vertical dragging allowed)
-                    const graphY = y - padding.top;
-                    const normalizedY = 1 - (graphY / graphHeight);
-                    const newTime = minTime + normalizedY * timeRange;
-                    
-                    // Clamp time to reasonable bounds
-                    const clampedTime = Math.max(baselineLapSeconds * 0.7, Math.min(baselineLapSeconds * 1.5, newTime));
-                    
-                    setLapTimes(prev => {
-                      const newTimes = [...prev];
-                      newTimes[draggingIndex] = clampedTime;
-                      return newTimes;
-                    });
-                  };
-
-                  const handleMouseUp = () => {
-                    setDraggingIndex(null);
-                  };
                   
-                  const totalStintTime = lapTimes.reduce((sum, time) => sum + time, 0);
-                  const avgLapTime = totalStintTime / numLaps;
+                  const fuelSavingLinePath = fuelSavingLapTimesState.map((time, index) => {
+                    const x = scaleX(index);
+                    const y = scaleY(time);
+                    return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+                  }).join(' ');
 
                   // Generate Y-axis labels with rounded values
                   const yAxisLabels = [];
@@ -2873,143 +3008,93 @@ const PlannerApp = () => {
                       border: '1px solid var(--border)',
                       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
                     }}>
-                      {/* Input fields */}
+                      {/* Input fields for both strategies */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 24 }}>
                         <div>
                           <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            Baseline Average Lap Time
-                            <span 
-                              title="Target average lap time for this stint. This will be the middle lap time, with earlier laps slower and later laps faster."
-                              style={{ 
-                                cursor: 'help', 
-                                color: 'var(--text-muted)', 
-                                fontSize: '0.85rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '16px',
-                                height: '16px',
-                                borderRadius: '50%',
-                                border: '1px solid var(--text-muted)'
-                              }}
-                            >
-                              ?
-                            </span>
+                            Standard Lap Time
+                            <span title="Standard strategy lap time (inherited from Setup)" style={{ cursor: 'help', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--text-muted)' }}>?</span>
                           </label>
                           <input
                             type="text"
                             placeholder="MM:SS.sss"
-                            value={stintModelling.baselineLapTime}
-                            onInput={(e) => setStintModelling(prev => ({ ...prev, baselineLapTime: e.target.value }))}
-                            style={{
-                              width: '100%',
-                              padding: '8px 12px',
-                              background: 'var(--surface)',
-                              color: 'var(--text)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '6px',
-                              fontSize: '0.9rem',
-                            }}
+                            value={stintModelling.standardLapTime || form.averageLapTime}
+                            onChange={(e) => setStintModelling(prev => ({ ...prev, standardLapTime: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
                           />
                         </div>
                         <div>
                           <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            Number of Laps
-                            <span 
-                              title="Total laps in this stint. The baseline lap time will be the middle lap, with earlier laps slower and later laps faster by 0.1% per lap."
-                              style={{ 
-                                cursor: 'help', 
-                                color: 'var(--text-muted)', 
-                                fontSize: '0.85rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '16px',
-                                height: '16px',
-                                borderRadius: '50%',
-                                border: '1px solid var(--text-muted)'
-                              }}
-                            >
-                              ?
-                            </span>
+                            Standard Laps
+                            <span title="Number of laps for standard strategy" style={{ cursor: 'help', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--text-muted)' }}>?</span>
                           </label>
                           <input
                             type="number"
-                            value={stintModelling.numLaps}
-                            onInput={(e) => setStintModelling(prev => ({ ...prev, numLaps: e.target.value }))}
-                            style={{
-                              width: '100%',
-                              padding: '8px 12px',
-                              background: 'var(--surface)',
-                              color: 'var(--text)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '6px',
-                              fontSize: '0.9rem',
-                            }}
+                            value={stintModelling.standardLaps || ''}
+                            onChange={(e) => setStintModelling(prev => ({ ...prev, standardLaps: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            Fuel-Saving Lap Time
+                            <span title="Fuel-saving strategy lap time (inherited from Setup)" style={{ cursor: 'help', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--text-muted)' }}>?</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="MM:SS.sss"
+                            value={stintModelling.fuelSavingLapTime || form.fuelSavingLapTime}
+                            onChange={(e) => setStintModelling(prev => ({ ...prev, fuelSavingLapTime: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            Fuel-Saving Laps
+                            <span title="Number of laps for fuel-saving strategy" style={{ cursor: 'help', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--text-muted)' }}>?</span>
+                          </label>
+                          <input
+                            type="number"
+                            value={stintModelling.fuelSavingLaps || ''}
+                            onChange={(e) => setStintModelling(prev => ({ ...prev, fuelSavingLaps: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
                           />
                         </div>
                       </div>
                       
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
-                        <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#f8fbff' }}>
-                          Stint - {numLaps} laps
-                        </h4>
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <button
-                            onClick={resetToDefault}
-                            style={{
-                              padding: '4px 8px',
-                              background: 'rgba(148, 163, 184, 0.15)',
-                              color: '#94a3b8',
-                              border: '1px solid #94a3b8',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.7rem',
-                              fontWeight: 500,
-                            }}
-                            title="Reset to default"
-                          >
-                            ↺ Reset
-                          </button>
-                          <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-                            <div style={{ textAlign: 'right' }}>
-                              <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 2 }}>Total Stint Time</div>
-                              <div className="stat-value" style={{ fontSize: '1.3rem', fontWeight: 600 }}>
-                                {formatDuration(totalStintTime)}
-                              </div>
+                      {/* Metrics */}
+                      <div style={{ display: 'flex', gap: 24, marginBottom: 24, flexWrap: 'wrap' }}>
+                        <div style={{ padding: 12, background: 'rgba(14, 165, 233, 0.1)', borderRadius: 8, border: '1px solid rgba(14, 165, 233, 0.3)' }}>
+                          <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>Standard Strategy</div>
+                          <div style={{ display: 'flex', gap: 16 }}>
+                            <div>
+                              <div className="stat-label" style={{ fontSize: '0.7rem' }}>Avg Lap</div>
+                              <div className="stat-value" style={{ fontSize: '1rem', color: '#0ea5e9' }}>{formatLapTime(standardAvgLap)}</div>
                             </div>
-                            <div style={{ textAlign: 'right' }}>
-                              <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 2 }}>Average Lap</div>
-                              <div className="stat-value" style={{ 
-                                fontSize: '1.1rem', 
-                                fontWeight: 600, 
-                                color: 'var(--accent)'
-                              }}>
-                                {formatLapTime(avgLapTime)}
-                              </div>
+                            <div>
+                              <div className="stat-label" style={{ fontSize: '0.7rem' }}>Total Time</div>
+                              <div className="stat-value" style={{ fontSize: '1rem', color: '#0ea5e9' }}>{formatDuration(standardTotalTime)}</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ padding: 12, background: 'rgba(16, 185, 129, 0.1)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                          <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>Fuel-Saving Strategy</div>
+                          <div style={{ display: 'flex', gap: 16 }}>
+                            <div>
+                              <div className="stat-label" style={{ fontSize: '0.7rem' }}>Avg Lap</div>
+                              <div className="stat-value" style={{ fontSize: '1rem', color: '#10b981' }}>{formatLapTime(fuelSavingAvgLap)}</div>
+                            </div>
+                            <div>
+                              <div className="stat-label" style={{ fontSize: '0.7rem' }}>Total Time</div>
+                              <div className="stat-value" style={{ fontSize: '1rem', color: '#10b981' }}>{formatDuration(fuelSavingTotalTime)}</div>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div 
-                        style={{ 
-                          position: 'relative',
-                          background: 'var(--surface)',
-                          borderRadius: 12,
-                          padding: 16,
-                          border: '1px solid var(--border)'
-                        }}
-                        onMouseMove={handleMouseMove}
-                        onMouseUp={handleMouseUp}
-                        onMouseLeave={handleMouseUp}
-                      >
-                        <svg
-                          ref={svgRef}
-                          width={width}
-                          height={height}
-                          style={{ display: 'block', cursor: draggingIndex !== null ? 'grabbing' : 'default' }}
-                        >
+                      {/* Graph SVG */}
+                      <div style={{ position: 'relative', background: 'var(--surface)', borderRadius: 12, padding: 16, border: '1px solid var(--border)' }}>
+                        <svg width={width} height={height} style={{ display: 'block' }}>
                           {/* Grid lines */}
                           {yAxisLabels.map((label, idx) => (
                             <g key={idx}>
@@ -3026,7 +3111,7 @@ const PlannerApp = () => {
                           ))}
                           
                           {/* X-axis grid lines */}
-                          {Array.from({ length: numLaps }, (_, i) => {
+                          {Array.from({ length: maxLaps }, (_, i) => {
                             const x = scaleX(i);
                             return (
                               <line
@@ -3058,9 +3143,9 @@ const PlannerApp = () => {
                           ))}
 
                           {/* X-axis labels */}
-                          {Array.from({ length: numLaps }, (_, i) => {
+                          {Array.from({ length: maxLaps }, (_, i) => {
                             const x = scaleX(i);
-                            const showLabel = i === 0 || i === numLaps - 1 || (i % Math.ceil(numLaps / 8) === 0);
+                            const showLabel = i === 0 || i === maxLaps - 1 || (i % Math.ceil(maxLaps / 8) === 0);
                             return showLabel ? (
                               <text
                                 key={i}
@@ -3094,109 +3179,32 @@ const PlannerApp = () => {
                             strokeWidth="2"
                           />
 
-                          {/* Line connecting points */}
-                          <path
-                            d={linePath}
-                            fill="none"
-                            stroke="var(--accent)"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            style={{ filter: 'drop-shadow(0 2px 4px rgba(56, 189, 248, 0.3))' }}
-                          />
-
-                          {/* Data points */}
-                          {lapTimes.map((time, index) => {
-                            const x = scaleX(index);
-                            const y = scaleY(time);
-                            const isDragging = draggingIndex === index;
-                            const isHovering = hoverIndex === index;
-                            
-                            return (
-                              <g key={index}>
-                                {/* Hover circle (larger, semi-transparent) */}
-                                {(isHovering || isDragging) && (
-                                  <circle
-                                    cx={x}
-                                    cy={y}
-                                    r="8"
-                                    fill="var(--accent)"
-                                    opacity="0.2"
-                                  />
-                                )}
-                                {/* Main point */}
-                                <circle
-                                  cx={x}
-                                  cy={y}
-                                  r={isDragging ? 7 : isHovering ? 6 : 5}
-                                  fill="var(--accent)"
-                                  stroke="#071321"
-                                  strokeWidth="2"
-                                  style={{ 
-                                    cursor: 'grab',
-                                    transition: isDragging ? 'none' : 'r 0.2s ease',
-                                    filter: isDragging || isHovering 
-                                      ? 'drop-shadow(0 0 8px rgba(56, 189, 248, 0.6))'
-                                      : 'drop-shadow(0 2px 4px rgba(56, 189, 248, 0.3))'
-                                  }}
-                                  onMouseDown={(e) => handleMouseDown(e, index)}
-                                  onMouseEnter={() => setHoverIndex(index)}
-                                  onMouseLeave={() => setHoverIndex(null)}
-                                />
-                                {/* Tooltip */}
-                                {(isHovering || isDragging) && (
-                                  <g>
-                                    <rect
-                                      x={x - 45}
-                                      y={y - 45}
-                                      width="90"
-                                      height="32"
-                                      rx="4"
-                                      fill="rgba(2, 11, 22, 0.95)"
-                                      stroke="var(--accent)"
-                                      strokeWidth="1"
-                                    />
-                                    <text
-                                      x={x}
-                                      y={y - 28}
-                                      fill="var(--accent)"
-                                      fontSize="10"
-                                      fontWeight="600"
-                                      textAnchor="middle"
-                                      style={{ userSelect: 'none' }}
-                                    >
-                                      Lap {index + 1}
-                                    </text>
-                                    <text
-                                      x={x}
-                                      y={y - 15}
-                                      fill="var(--accent)"
-                                      fontSize="11"
-                                      fontWeight="600"
-                                      textAnchor="middle"
-                                      style={{ userSelect: 'none' }}
-                                    >
-                                      {formatLapTime(time)}
-                                    </text>
-                                  </g>
-                                )}
-                              </g>
-                            );
-                          })}
+                          {/* Standard line (blue) */}
+                          {standardLapTimesState.length > 0 && (
+                            <path
+                              d={standardLinePath}
+                              fill="none"
+                              stroke="#0ea5e9"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              style={{ filter: 'drop-shadow(0 2px 4px rgba(14, 165, 233, 0.3))' }}
+                            />
+                          )}
+                          
+                          {/* Fuel-saving line (green) */}
+                          {fuelSavingLapTimesState.length > 0 && (
+                            <path
+                              d={fuelSavingLinePath}
+                              fill="none"
+                              stroke="#10b981"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.3))' }}
+                            />
+                          )}
                         </svg>
-
-                        {/* Instructions */}
-                        <div style={{ 
-                          marginTop: 12, 
-                          padding: 8, 
-                          background: 'rgba(56, 189, 248, 0.1)', 
-                          borderRadius: 6,
-                          fontSize: '0.75rem',
-                          color: 'var(--text-muted)',
-                          textAlign: 'center'
-                        }}>
-                          💡 Drag any point to adjust lap time • Total and average update in real-time
-                        </div>
                       </div>
                     </div>
                   );
@@ -3367,7 +3375,6 @@ const PlannerApp = () => {
 
       <footer className="footer">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <span>Built for iRacing Endurance strategy preparation — race smarter.</span>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>v0.2.0</span>
             <a 
