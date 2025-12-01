@@ -208,12 +208,14 @@ const computePlan = (form, strategyMode = 'standard') => {
   const raceDurationSeconds = Number(form.raceDurationMinutes || 0) * 60;
   const maxRaceTimeSeconds = raceDurationSeconds + lapSeconds;
 
-  let lapsPerStint = Math.floor(tankCapacity / fuelPerLap);
-
+  // Calculate fuel-based maximum laps per stint FIRST
+  const maxLapsPerStintWithFuel = Math.floor(tankCapacity / fuelPerLap);
+  
+  // Calculate constrained laps per stint (for display/other uses)
+  let lapsPerStint = maxLapsPerStintWithFuel;
   if (maxLapsPerStint && maxLapsPerStint > 0) {
     lapsPerStint = Math.min(lapsPerStint, Math.floor(maxLapsPerStint));
   }
-
   lapsPerStint = Math.max(1, lapsPerStint);
 
   // FIRST: Simulate lap-by-lap to find when timer hits zero (before building stint plan)
@@ -254,8 +256,10 @@ const computePlan = (form, strategyMode = 'standard') => {
     simulatedTime += currentLapTime; // Use currentLapTime, not lapTime
     simulatedLaps += 1;
     
-    // Check if we need a pit stop (every lapsPerStint laps, except last stint)
-    if (simulatedLaps > 0 && simulatedLaps % lapsPerStint === 0) {
+    // Check if we need a pit stop - use fuel-based maximum for simulation (not constrained)
+    // This ensures fuel-saving can do more laps per stint in simulation
+    // The constraint (maxLapsPerStint) will be applied when building actual stint plan
+    if (simulatedLaps > 0 && simulatedLaps % maxLapsPerStintWithFuel === 0) {
       // Add pit stop time
       simulatedTime += estimatedPerStopLoss;
       estimatedPitTime += estimatedPerStopLoss;
@@ -294,8 +298,7 @@ const computePlan = (form, strategyMode = 'standard') => {
 
   // NOW calculate stint count - OPTIMIZE to minimize stints by redistributing laps
   // For fuel-saving, we want to use fewer stints by extending stints up to fuel limit
-  // Calculate max laps per stint based on fuel capacity
-  const maxLapsPerStintWithFuel = Math.floor(tankCapacity / fuelPerLap);
+  // maxLapsPerStintWithFuel is already calculated above
   // Apply user constraint if set
   const effectiveMaxLapsForOptimization = maxLapsPerStint && maxLapsPerStint > 0 
     ? Math.min(maxLapsPerStintWithFuel, Math.floor(maxLapsPerStint))
