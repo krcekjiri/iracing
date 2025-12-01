@@ -297,15 +297,16 @@ const computePlan = (form, strategyMode = 'standard') => {
   if (remainingLaps === 0) {
     // Perfect division - use exact number of stints
     stintCount = fullStintsPossible;
-  } else if (remainingLaps > 0 && remainingLaps <= lapsPerStint) {
-    // We have a remainder that fits in one more stint
-    const lastStintLaps = remainingLaps;
-    const lastStintFuelNeeded = lastStintLaps * fuelPerLap + reserveLiters;
-    if (lastStintFuelNeeded <= tankCapacity) {
-      // Can fit remainder in one more stint
+  } else if (remainingLaps > 0) {
+    // We have a remainder - check if we can fit it in existing stints by redistributing
+    const avgLapsPerStint = totalLaps / (fullStintsPossible + 1);
+    const maxLapsPerStintWithFuel = Math.floor(tankCapacity / fuelPerLap);
+    
+    // If average fits within tank capacity, use one more stint
+    if (avgLapsPerStint <= maxLapsPerStintWithFuel) {
       stintCount = fullStintsPossible + 1;
     } else {
-      // Remainder is too large for one stint, need to distribute
+      // Need to distribute - calculate optimal stint count
       stintCount = Math.ceil(totalLaps / lapsPerStint);
     }
   } else {
@@ -638,10 +639,270 @@ const StrategyGraph = ({ plan, perStopLoss }) => {
   );
 };
 
+// Helper function to calculate tire service time (reused from pit stop modelling)
+const calculateTireServiceTime = (tireChange, pitWallSide) => {
+  const pitWallIsRight = pitWallSide === 'right';
+  const wallCorners = pitWallIsRight ? ['RF', 'RR'] : ['LF', 'LR'];
+  const frontCorners = ['LF', 'RF'];
+  const rearCorners = ['LR', 'RR'];
+  
+  // Convert tireChange object to corner keys
+  const selectedCornerKeys = Object.entries(tireChange)
+    .filter(([corner, selected]) => selected)
+    .map(([corner]) => {
+      // Map left/right/front/rear to corner codes
+      if (corner === 'left') return ['LF', 'LR'];
+      if (corner === 'right') return ['RF', 'RR'];
+      if (corner === 'front') return ['LF', 'RF'];
+      if (corner === 'rear') return ['LR', 'RR'];
+      return [];
+    })
+    .flat();
+  
+  const selectedCount = selectedCornerKeys.length;
+  if (selectedCount === 0) return 0;
+  
+  const frontsSelectedOnly = frontCorners.every((corner) => selectedCornerKeys.includes(corner)) && 
+                            !rearCorners.some((corner) => selectedCornerKeys.includes(corner));
+  const rearsSelectedOnly = rearCorners.every((corner) => selectedCornerKeys.includes(corner)) && 
+                           !frontCorners.some((corner) => selectedCornerKeys.includes(corner));
+  
+  if (frontsSelectedOnly) {
+    return 10.5;
+  } else if (rearsSelectedOnly) {
+    return 12;
+  } else {
+    return selectedCornerKeys.reduce((total, corner) => {
+      const wallCorner = wallCorners.includes(corner);
+      return total + (wallCorner ? 5.5 : 7);
+    }, 0);
+  }
+};
+
+// Compact Pit Stop Interface Component
+const PitStopInterface = ({ stint, nextStint, form, onPitStopChange }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [fuelToAdd, setFuelToAdd] = useState(stint.fuelToAdd || 0);
+  const [tireChange, setTireChange] = useState(stint.pitStop?.tireChange || {
+    left: false,
+    right: false,
+    front: false,
+    rear: false,
+  });
+  const [driverSwap, setDriverSwap] = useState(stint.pitStop?.driverSwap || false);
+  const [pitWallSide, setPitWallSide] = useState(stint.pitStop?.pitWallSide || 'left');
+  
+  // Calculate pit stop times
+  const tankCapacity = safeNumber(form.tankCapacity) || 106;
+  const fuelingTime = fuelToAdd > 0 ? (fuelToAdd / tankCapacity) * 41.1 : 0;
+  const tireServiceTime = calculateTireServiceTime(tireChange, pitWallSide);
+  const driverSwapTime = driverSwap ? 25 : 0;
+  const serviceTime = Math.max(fuelingTime, tireServiceTime, driverSwapTime);
+  const pitLaneDelta = safeNumber(form.pitLaneDeltaSeconds) || 27;
+  const totalPitTime = serviceTime + pitLaneDelta;
+  const bottleneck = serviceTime === fuelingTime ? 'fuel' : 
+                     serviceTime === tireServiceTime ? 'tires' : 'driver';
+  
+  const handleChange = (updates) => {
+    const newData = { fuelToAdd, tireChange, driverSwap, pitWallSide, ...updates };
+    onPitStopChange(newData);
+  };
+  
+  return (
+    <div style={{
+      margin: '8px 0',
+      padding: '12px',
+      background: 'rgba(56, 189, 248, 0.05)',
+      borderRadius: '6px',
+      border: '1px solid rgba(56, 189, 248, 0.15)',
+    }}>
+      {/* Compact Header - Always Visible */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          cursor: 'pointer',
+          marginBottom: isExpanded ? '12px' : '0'
+        }}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent)' }}>
+          Pit Stop {stint.id} → {nextStint.id}
+        </div>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            {roundTo(totalPitTime, 1)}s
+          </div>
+          <div style={{ 
+            fontSize: '0.7rem',
+            color: bottleneck === 'fuel' ? '#0ea5e9' : 
+                   bottleneck === 'tires' ? '#f59e0b' : '#10b981',
+            fontWeight: 600
+          }}>
+            {bottleneck === 'fuel' ? '⛽' : bottleneck === 'tires' ? '🛞' : '👤'}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+            {isExpanded ? '▼' : '▶'}
+          </div>
+        </div>
+      </div>
+      
+      {/* Expanded Configuration - Only when clicked */}
+      {isExpanded && (
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr', 
+          gap: '12px',
+          paddingTop: '12px',
+          borderTop: '1px solid rgba(56, 189, 248, 0.1)'
+        }}>
+          {/* Left Column - Compact Inputs */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div>
+              <label style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>
+                Fuel (L)
+              </label>
+              <input
+                type="number"
+                value={fuelToAdd}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setFuelToAdd(val);
+                  handleChange({ fuelToAdd: val });
+                }}
+                style={{ 
+                  width: '100%', 
+                  padding: '6px 8px', 
+                  fontSize: '0.85rem',
+                  background: 'var(--surface)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: '4px' 
+                }}
+              />
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {roundTo(fuelingTime, 1)}s
+              </div>
+            </div>
+            
+            <div>
+              <label style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>
+                Tires
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                {['left', 'right', 'front', 'rear'].map(side => (
+                  <label key={side} style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px',
+                    fontSize: '0.75rem'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={tireChange[side]}
+                      onChange={(e) => {
+                        const newTireChange = { ...tireChange, [side]: e.target.checked };
+                        setTireChange(newTireChange);
+                        handleChange({ tireChange: newTireChange });
+                      }}
+                      style={{ width: '14px', height: '14px' }}
+                    />
+                    {side.charAt(0).toUpperCase() + side.slice(1)}
+                  </label>
+                ))}
+              </div>
+              <div style={{ marginTop: '6px' }}>
+                <select
+                  value={pitWallSide}
+                  onChange={(e) => {
+                    setPitWallSide(e.target.value);
+                    handleChange({ pitWallSide: e.target.value });
+                  }}
+                  style={{ 
+                    width: '100%', 
+                    padding: '4px 6px', 
+                    fontSize: '0.75rem',
+                    background: 'var(--surface)', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: '4px' 
+                  }}
+                >
+                  <option value="left">Pit Wall: Left</option>
+                  <option value="right">Pit Wall: Right</option>
+                </select>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {roundTo(tireServiceTime, 1)}s
+              </div>
+            </div>
+            
+            <div>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                fontSize: '0.75rem'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={driverSwap}
+                  onChange={(e) => {
+                    setDriverSwap(e.target.checked);
+                    handleChange({ driverSwap: e.target.checked });
+                  }}
+                  style={{ width: '14px', height: '14px' }}
+                />
+                Driver Swap
+              </label>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {driverSwapTime > 0 ? '25s' : 'Not selected'}
+              </div>
+            </div>
+          </div>
+          
+          {/* Right Column - Compact Metrics */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
+            <div style={{ 
+              padding: '8px',
+              background: bottleneck === 'fuel' ? 'rgba(14, 165, 233, 0.1)' :
+                         bottleneck === 'tires' ? 'rgba(245, 158, 11, 0.1)' :
+                         'rgba(16, 185, 129, 0.1)',
+              borderRadius: '4px',
+              border: `1px solid ${bottleneck === 'fuel' ? 'rgba(14, 165, 233, 0.3)' :
+                              bottleneck === 'tires' ? 'rgba(245, 158, 11, 0.3)' :
+                              'rgba(16, 185, 129, 0.3)'}`
+            }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                Service Time
+              </div>
+              <div style={{ fontSize: '1rem', fontWeight: 600 }}>
+                {roundTo(serviceTime, 1)}s
+              </div>
+            </div>
+            
+            <div style={{ padding: '8px', background: 'var(--surface-muted)', borderRadius: '4px' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                Total Pit Stop
+              </div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--accent)' }}>
+                {roundTo(totalPitTime, 1)}s
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Service + Lane ({pitLaneDelta}s)
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StintPlanCard = ({
   plan,
   reservePerStint = 0,
   formationLapFuel = 0,
+  form,
   onReorder,
 }) => {
   const [draggedIndex, setDraggedIndex] = useState(null);
@@ -693,9 +954,12 @@ const StintPlanCard = ({
       stint.endLap = cumulativeLaps;
     });
     
-    setReorderedPlan(newPlan);
+    // Recalculate all fuel and pit stop data
+    const recalculatedPlan = recalculateStintPlan(newPlan, form, reservePerStint, formationLapFuel);
+    
+    setReorderedPlan(recalculatedPlan);
     if (onReorder) {
-      onReorder(newPlan);
+      onReorder(recalculatedPlan);
     }
     setDraggedIndex(null);
     setDragOverIndex(null);
@@ -706,60 +970,144 @@ const StintPlanCard = ({
     setDragOverIndex(null);
   };
 
+  // Recalculate all stint data when reordered
+  const recalculateStintPlan = (newPlan, form, reservePerStint, formationLapFuel) => {
+    const tankCapacity = safeNumber(form.tankCapacity) || 106;
+    const fuelPerLap = safeNumber(form.fuelPerLap) || 3.18;
+    const pitLaneDelta = safeNumber(form.pitLaneDeltaSeconds) || 27;
+    const lapSeconds = parseLapTime(form.averageLapTime) || 103.5;
+    
+    let fuelInTank = tankCapacity; // Start with full tank
+    
+    return newPlan.map((stint, idx) => {
+      const isFirstStint = idx === 0;
+      const isLastStint = idx === newPlan.length - 1;
+      
+      // Calculate fuel needed for this stint
+      const baseFuelNeeded = stint.laps * fuelPerLap + reservePerStint;
+      const fuelNeeded = isFirstStint && formationLapFuel > 0
+        ? Math.max(0, baseFuelNeeded - formationLapFuel)
+        : baseFuelNeeded;
+      const fuelUsed = Math.min(fuelNeeded, fuelInTank);
+      const fuelLeft = fuelInTank - fuelUsed;
+      
+      // Calculate fuel to add at next pit stop (if not last stint)
+      let fuelToAdd = 0;
+      let fuelingTime = 0;
+      if (!isLastStint) {
+        const nextStintFuelNeeded = newPlan[idx + 1].laps * fuelPerLap + reservePerStint;
+        fuelToAdd = Math.max(0, nextStintFuelNeeded - fuelLeft);
+        fuelToAdd = Math.min(fuelToAdd, tankCapacity);
+        fuelingTime = (fuelToAdd / tankCapacity) * 41.1;
+      }
+      
+      // Get pit stop configuration if exists
+      const pitStop = stint.pitStop || {
+        tireChange: { left: false, right: false, front: false, rear: false },
+        driverSwap: false,
+        pitWallSide: 'left',
+      };
+      
+      // Calculate tire service time if tires are changed
+      const tireServiceTime = calculateTireServiceTime(pitStop.tireChange, pitStop.pitWallSide);
+      const driverSwapTime = pitStop.driverSwap ? 25 : 0;
+      const serviceTime = Math.max(fuelingTime, tireServiceTime, driverSwapTime);
+      const perStopLoss = !isLastStint ? pitLaneDelta + serviceTime : 0;
+      
+      // Update fuel in tank for next stint
+      fuelInTank = fuelLeft + fuelToAdd;
+      
+      // Calculate stint duration
+      const stintSeconds = stint.laps * lapSeconds;
+      
+      return {
+        ...stint,
+        fuel: fuelUsed,
+        fuelLeft: fuelLeft,
+        fuelToAdd: fuelToAdd,
+        fuelingTime: fuelingTime,
+        perStopLoss: perStopLoss,
+        stintDuration: stintSeconds,
+        pitStop: pitStop,
+      };
+    });
+  };
+
   return (
     <div className="stint-list">
       {reorderedPlan.map((stint, idx) => {
         const isFirstStint = idx === 0;
         const isLastStint = idx === reorderedPlan.length - 1;
+        const nextStint = !isLastStint ? reorderedPlan[idx + 1] : null;
         const usableFuel = Math.max(stint.fuel - reservePerStint - (isFirstStint ? formationLapFuel : 0), 0);
         const fuelPerLapTarget = stint.laps ? usableFuel / stint.laps : 0;
         const perLapDisplay = fuelPerLapTarget.toFixed(2);
 
         return (
-        <div
-          className="stint-item"
-          key={stint.id}
-          draggable
-          onDragStart={(e) => handleDragStart(e, idx)}
-          onDragOver={(e) => handleDragOver(e, idx)}
-          onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, idx)}
-          onDragEnd={handleDragEnd}
-          style={{
-            cursor: 'move',
-            opacity: draggedIndex === idx ? 0.5 : 1,
-            borderTop: dragOverIndex === idx && draggedIndex !== idx ? '2px solid var(--accent)' : 'none',
-          }}
-        >
-          <div>
-            <strong>Stint {stint.id}</strong>
-            <div className="stint-meta">
-              <span>
-                Laps {stint.startLap}–{stint.endLap} ({stint.laps} lap
-                {stint.laps > 1 ? 's' : ''})
-              </span>
-              <span>{formatDuration(stint.stintDuration)}</span>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <span className="stat-label">Fuel Target / Lap</span>
-            <div className="stat-value" style={{ fontSize: '1.2rem' }}>
-              {perLapDisplay} L
-            </div>
-            {stint.fuelLeft !== undefined && (
-              <div className="stat-label" style={{ marginTop: 4, color: 'var(--accent)' }}>
-                Fuel Left: {roundTo(stint.fuelLeft, 1)} L
-                {isFirstStint && formationLapFuel > 0 && (
-                  <span className="help-badge" style={{ marginLeft: 4 }} tabIndex={0}>
-                    <span className="help-icon" style={{ fontSize: '0.7rem' }}>ℹ</span>
-                    <span className="help-tooltip">Formation lap: -{roundTo(formationLapFuel, 1)} L</span>
+          <div key={stint.id} style={{ display: 'contents' }}>
+            <div
+              className="stint-item"
+              draggable
+              onDragStart={(e) => handleDragStart(e, idx)}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, idx)}
+              onDragEnd={handleDragEnd}
+              style={{
+                cursor: 'move',
+                opacity: draggedIndex === idx ? 0.5 : 1,
+                borderTop: dragOverIndex === idx && draggedIndex !== idx ? '2px solid var(--accent)' : 'none',
+              }}
+            >
+              <div>
+                <strong>Stint {stint.id}</strong>
+                <div className="stint-meta">
+                  <span>
+                    Laps {stint.startLap}–{stint.endLap} ({stint.laps} lap
+                    {stint.laps > 1 ? 's' : ''})
                   </span>
+                  <span>{formatDuration(stint.stintDuration)}</span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span className="stat-label">Fuel Target / Lap</span>
+                <div className="stat-value" style={{ fontSize: '1.2rem' }}>
+                  {perLapDisplay} L
+                </div>
+                {stint.fuelLeft !== undefined && (
+                  <div className="stat-label" style={{ marginTop: 4, color: 'var(--accent)' }}>
+                    Fuel Left: {roundTo(stint.fuelLeft, 1)} L
+                    {isFirstStint && formationLapFuel > 0 && (
+                      <span className="help-badge" style={{ marginLeft: 4 }} tabIndex={0}>
+                        <span className="help-icon" style={{ fontSize: '0.7rem' }}>ℹ</span>
+                        <span className="help-tooltip">Formation lap: -{roundTo(formationLapFuel, 1)} L</span>
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
+            </div>
+            
+            {/* Pit Stop Interface (between stints) */}
+            {!isLastStint && nextStint && (
+              <PitStopInterface
+                stint={stint}
+                nextStint={nextStint}
+                form={form}
+                onPitStopChange={(pitStopData) => {
+                  // Update pit stop data and recalculate
+                  const updatedPlan = [...reorderedPlan];
+                  updatedPlan[idx].pitStop = pitStopData;
+                  const recalculated = recalculateStintPlan(updatedPlan, form, reservePerStint, formationLapFuel);
+                  setReorderedPlan(recalculated);
+                  if (onReorder) {
+                    onReorder(recalculated);
+                  }
+                }}
+              />
             )}
           </div>
-        </div>
-      );
+        );
       })}
     </div>
   );
@@ -2402,14 +2750,15 @@ const PlannerApp = () => {
             
             return (
               <>
-                <StintPlanCard
-                  plan={reorderedStints}
-                  reservePerStint={reservePerStint}
-                  formationLapFuel={Number(form.formationLapFuel) || 0}
-                  onReorder={(newPlan) => {
-                    setReorderedStints(newPlan);
-                  }}
-                />
+              <StintPlanCard
+                plan={reorderedStints}
+                reservePerStint={reservePerStint}
+                formationLapFuel={Number(form.formationLapFuel) || 0}
+                form={form}
+                onReorder={(newPlan) => {
+                  setReorderedStints(newPlan);
+                }}
+              />
                 {!activeResult.errors?.length && reorderedStints.length > 0 && (
                   <StrategyGraph plan={reorderedStints} perStopLoss={activeResult.perStopLoss} />
                 )}
@@ -2896,7 +3245,7 @@ const PlannerApp = () => {
                   // Tyre warming penalties relative to lap 4: lap 1 = +3, lap 2 = +1.5, lap 3 = +0.5, lap 4 = baseline
                   const tyreWarmingPenalties = [3, 1.5, 0.5]; // Applied to laps 1, 2, 3
                   
-                  // Generate default lap times with exponential decrease for laps 1-4, then linear
+                  // Generate default lap times with smooth exponential decrease for laps 1-5, then linear
                   const generateDefaultLapTimes = (baseline, laps) => {
                     const times = [];
                     const midLap = Math.ceil(laps / 2);
@@ -2904,19 +3253,22 @@ const PlannerApp = () => {
                     for (let lap = 1; lap <= laps; lap++) {
                       let baseTime = baseline;
                       
-                      // Laps 1-4: Exponential decrease in penalty (relative to lap 4 baseline)
-                      // Lap 1 = +3, Lap 2 = +1.5, Lap 3 = +0.5, Lap 4 = baseline (0)
+                      // Laps 1-5: Smooth exponential decrease (no big jumps)
                       if (lap === 1) {
-                        baseTime += 3; // +3s
+                        baseTime += 3.0; // +3s
                       } else if (lap === 2) {
-                        baseTime += 1.5; // +1.5s
+                        baseTime += 1.5; // +1.5s (decrease of 1.5s from lap 1)
                       } else if (lap === 3) {
-                        baseTime += 0.5 + 0.5; // +0.5s penalty + 0.5s inlap = +1s total
+                        baseTime += 1.0; // +1.0s total (0.5s penalty + 0.5s inlap, decrease of 0.5s from lap 2)
+                      } else if (lap === 4) {
+                        baseTime += 0.3; // +0.3s (smooth transition, decrease of 0.7s from lap 3)
+                      } else if (lap === 5) {
+                        baseTime += 0.1; // +0.1s (smooth transition, decrease of 0.2s from lap 4)
                       }
-                      // Lap 4 is baseline (no penalty)
+                      // Lap 6+ continues smoothly
                       
-                      // After lap 4: Linear progression around middle
-                      if (lap > 4) {
+                      // After lap 5: Linear progression around middle
+                      if (lap > 5) {
                         if (lap < midLap) {
                           // Before middle: slower by 0.05% per lap away from middle
                           const lapsFromMid = midLap - lap;
@@ -2976,10 +3328,10 @@ const PlannerApp = () => {
                   const graphWidth = width - padding.left - padding.right;
                   const graphHeight = height - padding.top - padding.bottom;
                   
-                  // Calculate min/max for both lines
+                  // Calculate min/max for both lines with tighter zoom
                   const allTimes = [...standardLapTimesState, ...fuelSavingLapTimesState];
-                  const minTime = allTimes.length > 0 ? Math.min(...allTimes) * 0.98 : 100;
-                  const maxTime = allTimes.length > 0 ? Math.max(...allTimes) * 1.02 : 110;
+                  const minTime = allTimes.length > 0 ? Math.min(...allTimes) * 0.995 : 100; // Tighter zoom
+                  const maxTime = allTimes.length > 0 ? Math.max(...allTimes) * 1.005 : 110; // Tighter zoom
                   const timeRange = maxTime - minTime;
                   
                   const maxLaps = Math.max(standardLaps, fuelSavingLaps);
@@ -3065,18 +3417,27 @@ const PlannerApp = () => {
                     setFuelSavingDraggingIndex(null);
                   };
 
+                  // Calculate fuel consumption difference for comparison
+                  const fuelPerLap = safeNumber(form.fuelPerLap) || 3.18;
+                  const fuelSavingFuelPerLap = safeNumber(form.fuelSavingFuelPerLap) || 3.07;
+                  const fuelSavingsPercent = ((fuelPerLap - fuelSavingFuelPerLap) / fuelPerLap * 100).toFixed(1);
+                  const timeDelta = fuelSavingTotalTime - standardTotalTime;
+
                   return (
                     <div style={{ 
                       padding: 20, 
                       background: 'var(--surface-muted)', 
                       borderRadius: 16, 
                       border: '1px solid var(--border)',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 2fr 1fr',
+                      gap: '24px'
                     }}>
-                      {/* Reordered inputs: Standard first, then Fuel-Saving */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 24 }}>
+                      {/* Left Column - Inputs */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <div>
-                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '8px' }}>
                             Standard Lap Time
                             <span title="Standard strategy lap time (inherited from Setup)" style={{ cursor: 'help', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--text-muted)' }}>?</span>
                           </label>
@@ -3092,7 +3453,7 @@ const PlannerApp = () => {
                           />
                         </div>
                         <div>
-                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '8px' }}>
                             Standard Laps
                             <span title="Number of laps for standard strategy" style={{ cursor: 'help', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--text-muted)' }}>?</span>
                           </label>
@@ -3107,7 +3468,7 @@ const PlannerApp = () => {
                           />
                         </div>
                         <div>
-                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '8px' }}>
                             Fuel-Saving Lap Time
                             <span title="Fuel-saving strategy lap time (inherited from Setup)" style={{ cursor: 'help', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--text-muted)' }}>?</span>
                           </label>
@@ -3123,7 +3484,7 @@ const PlannerApp = () => {
                           />
                         </div>
                         <div>
-                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '8px' }}>
                             Fuel-Saving Laps
                             <span title="Number of laps for fuel-saving strategy" style={{ cursor: 'help', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', border: '1px solid var(--text-muted)' }}>?</span>
                           </label>
@@ -3139,35 +3500,8 @@ const PlannerApp = () => {
                         </div>
                       </div>
                       
-                      {/* Metrics - reordered: Standard first */}
-                      <div style={{ display: 'flex', gap: 24, marginBottom: 24, flexWrap: 'wrap' }}>
-                        <div style={{ padding: 12, background: 'rgba(14, 165, 233, 0.1)', borderRadius: 8, border: '1px solid rgba(14, 165, 233, 0.3)' }}>
-                          <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>Standard Strategy</div>
-                          <div style={{ display: 'flex', gap: 16 }}>
-                            <div>
-                              <div className="stat-label" style={{ fontSize: '0.7rem' }}>Avg Lap</div>
-                              <div className="stat-value" style={{ fontSize: '1rem', color: '#0ea5e9' }}>{formatLapTime(standardAvgLap)}</div>
-                            </div>
-                            <div>
-                              <div className="stat-label" style={{ fontSize: '0.7rem' }}>Total Time</div>
-                              <div className="stat-value" style={{ fontSize: '1rem', color: '#0ea5e9' }}>{formatDuration(standardTotalTime)}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ padding: 12, background: 'rgba(16, 185, 129, 0.1)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                          <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>Fuel-Saving Strategy</div>
-                          <div style={{ display: 'flex', gap: 16 }}>
-                            <div>
-                              <div className="stat-label" style={{ fontSize: '0.7rem' }}>Avg Lap</div>
-                              <div className="stat-value" style={{ fontSize: '1rem', color: '#10b981' }}>{formatLapTime(fuelSavingAvgLap)}</div>
-                            </div>
-                            <div>
-                              <div className="stat-label" style={{ fontSize: '0.7rem' }}>Total Time</div>
-                              <div className="stat-value" style={{ fontSize: '1rem', color: '#10b981' }}>{formatDuration(fuelSavingTotalTime)}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      {/* Middle Column - Graph */}
+                      <div>
 
                       {/* Graph SVG with drag points and tooltips */}
                       <div 
@@ -3368,6 +3702,84 @@ const PlannerApp = () => {
                             );
                           })}
                         </svg>
+                      </div>
+                      </div>
+                      
+                      {/* Right Column - Outputs & Comparison */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {/* Standard Metrics */}
+                        <div style={{ padding: 12, background: 'rgba(14, 165, 233, 0.1)', borderRadius: 8, border: '1px solid rgba(14, 165, 233, 0.3)' }}>
+                          <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>Standard Strategy</div>
+                          <div style={{ marginTop: '8px' }}>
+                            <div className="stat-label" style={{ fontSize: '0.7rem' }}>Avg Lap</div>
+                            <div className="stat-value" style={{ fontSize: '1rem', color: '#0ea5e9' }}>{formatLapTime(standardAvgLap)}</div>
+                          </div>
+                          <div style={{ marginTop: '8px' }}>
+                            <div className="stat-label" style={{ fontSize: '0.7rem' }}>Total Time</div>
+                            <div className="stat-value" style={{ fontSize: '1rem', color: '#0ea5e9' }}>{formatDuration(standardTotalTime)}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Fuel-Saving Metrics */}
+                        <div style={{ padding: 12, background: 'rgba(16, 185, 129, 0.1)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                          <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>Fuel-Saving Strategy</div>
+                          <div style={{ marginTop: '8px' }}>
+                            <div className="stat-label" style={{ fontSize: '0.7rem' }}>Avg Lap</div>
+                            <div className="stat-value" style={{ fontSize: '1rem', color: '#10b981' }}>{formatLapTime(fuelSavingAvgLap)}</div>
+                          </div>
+                          <div style={{ marginTop: '8px' }}>
+                            <div className="stat-label" style={{ fontSize: '0.7rem' }}>Total Time</div>
+                            <div className="stat-value" style={{ fontSize: '1rem', color: '#10b981' }}>{formatDuration(fuelSavingTotalTime)}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Comparison Metric - Standard vs Fuel-Saving */}
+                        {standardLaps > 0 && fuelSavingLaps > 0 && standardLaps === fuelSavingLaps && (
+                          <div style={{ 
+                            padding: 12, 
+                            background: 'rgba(14, 165, 233, 0.1)', 
+                            borderRadius: 8, 
+                            border: '1px solid rgba(14, 165, 233, 0.3)' 
+                          }}>
+                            <div className="stat-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>
+                              Time Advantage ({standardLaps} laps)
+                            </div>
+                            <div className="stat-value" style={{ 
+                              fontSize: '1.2rem', 
+                              color: '#0ea5e9',
+                              fontWeight: 600
+                            }}>
+                              {formatDuration(Math.abs(timeDelta))}
+                            </div>
+                            <div className="stat-label" style={{ fontSize: '0.7rem', marginTop: '4px', color: 'var(--text-muted)' }}>
+                              Standard is faster
+                            </div>
+                            
+                            {/* Additional Context */}
+                            <div style={{ 
+                              marginTop: '12px', 
+                              padding: '8px', 
+                              background: 'rgba(255, 255, 255, 0.05)', 
+                              borderRadius: '4px',
+                              fontSize: '0.7rem',
+                              color: 'var(--text-muted)',
+                              lineHeight: '1.5'
+                            }}>
+                              <div style={{ marginBottom: '6px', fontWeight: 600 }}>
+                                <strong>Consider:</strong>
+                              </div>
+                              <div style={{ marginBottom: '4px' }}>
+                                • {formatDuration(Math.abs(timeDelta))} faster per stint
+                              </div>
+                              <div style={{ marginBottom: '4px' }}>
+                                • Fuel-saving uses {fuelSavingsPercent}% less fuel
+                              </div>
+                              <div>
+                                • May allow longer stints = fewer pit stops
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
