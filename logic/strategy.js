@@ -452,7 +452,17 @@ const computePlan = (form, strategyMode = 'standard') => {
     let fuelingTime = 0;
     let perStopLoss = 0;
     if (!isLastStint) {
-      fuelToAdd = tankCapacity - stint.fuelRemaining;
+      // Check if this is the last pit stop (before final stint) and if splashFuel is set
+      const isLastPitStop = idx === result.stints.length - 2;
+      const nextStint = result.stints[idx + 1];
+      
+      if (isLastPitStop && nextStint.splashFuel !== undefined) {
+        // Use splash-and-dash fuel amount
+        fuelToAdd = nextStint.splashFuel;
+      } else {
+        // Full tank for non-final pit stops
+        fuelToAdd = tankCapacity - stint.fuelRemaining;
+      }
       fuelingTime = (fuelToAdd / tankCapacity) * FULL_TANK_FUELING_TIME;
       perStopLoss = pitLaneDelta + Math.max(fuelingTime, stationaryService);
     }
