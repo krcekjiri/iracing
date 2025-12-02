@@ -6,6 +6,8 @@ const defaultForm = {
   fuelPerLap: 3.18,
   fuelSavingLapTime: '01:43.900',
   fuelSavingFuelPerLap: 3.07,
+  extraFuelSavingLapTime: '01:44.200',
+  extraFuelSavingFuelPerLap: 2.98,
   tankCapacity: 106,
   fuelReserveLiters: 0.3,
   pitLaneDeltaSeconds: 27,
@@ -260,6 +262,9 @@ const computePlan = (form, strategyMode = 'standard') => {
   if (strategyMode === 'fuel-saving') {
     lapTime = form.fuelSavingLapTime || form.averageLapTime;
     fuelPerLap = safeNumber(form.fuelSavingFuelPerLap) || safeNumber(form.fuelPerLap) || 3.07;
+  } else if (strategyMode === 'extra-fuel-saving') {
+    lapTime = form.extraFuelSavingLapTime || form.averageLapTime;
+    fuelPerLap = safeNumber(form.extraFuelSavingFuelPerLap) || safeNumber(form.fuelPerLap) || 2.98;
   } else {
     lapTime = form.averageLapTime;
     fuelPerLap = safeNumber(form.fuelPerLap) || 3.18;
@@ -789,6 +794,7 @@ const StrategyTab = ({
   form,
   standardResult,
   fuelSavingResult,
+  extraFuelSavingResult,
   strategyConfigs,
   selectedStrategy,
   setSelectedStrategy,
@@ -796,7 +802,11 @@ const StrategyTab = ({
   reservePerStint,
 }) => {
   // Get active result based on selected strategy
-  const activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
+  const activeResult = selectedStrategy === 'standard' 
+    ? standardResult 
+    : selectedStrategy === 'fuel-saving' 
+      ? fuelSavingResult 
+      : extraFuelSavingResult;
   
   // Calculate average lap times for display
   const calculateAvgLaps = (result) => {
@@ -837,7 +847,7 @@ const StrategyTab = ({
       </div>
 
       {/* Strategy Comparison Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 24 }}>
         {strategyConfigs && strategyConfigs.length > 0 ? (
           strategyConfigs
             .filter(strategy => strategy && strategy.result)
@@ -939,7 +949,11 @@ const StrategyTab = ({
       {!activeResult.errors?.length && activeResult.stintPlan?.length > 0 ? (
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Detailed Stint Planner - {selectedStrategy === 'standard' ? 'Standard' : 'Fuel-Saving'} Strategy</h3>
+            <h3>Detailed Stint Planner - {
+              selectedStrategy === 'standard' ? 'Standard' 
+              : selectedStrategy === 'fuel-saving' ? 'Fuel-Saving' 
+              : 'Extra Fuel-Saving'
+            } Strategy</h3>
             <span className="stat-label">
               Fuel target capped at tank capacity ({form.tankCapacity || 0} L)
             </span>
@@ -1172,6 +1186,8 @@ const DetailedStintPlanner = ({
   const getStrategyFuelPerLap = () => {
     if (strategyMode === 'fuel-saving') {
       return safeNumber(form.fuelSavingFuelPerLap) || safeNumber(form.fuelPerLap) || 3.07;
+    } else if (strategyMode === 'extra-fuel-saving') {
+      return safeNumber(form.extraFuelSavingFuelPerLap) || safeNumber(form.fuelPerLap) || 2.98;
     }
     return safeNumber(form.fuelPerLap) || 3.18;
   };
@@ -1189,7 +1205,9 @@ const DetailedStintPlanner = ({
     const lapSeconds = parseLapTime(
       strategyMode === 'fuel-saving' 
         ? (form.fuelSavingLapTime || form.averageLapTime)
-        : form.averageLapTime
+        : strategyMode === 'extra-fuel-saving'
+          ? (form.extraFuelSavingLapTime || form.averageLapTime)
+          : form.averageLapTime
     ) || 103.5;
     
     // Track which stints are being recalculated
@@ -2851,6 +2869,7 @@ const ScheduleSummary = ({
   raceDurationMinutes,
   standardResult,
   fuelSavingResult,
+  extraFuelSavingResult,
 }) => {
   if (!stintPlan?.length || !drivers?.length || !raceStartGMT) {
     return (
@@ -2869,12 +2888,18 @@ const ScheduleSummary = ({
   // Calculate laps per stint for each strategy
   const standardLapsPerStint = standardResult?.lapsPerStint || 0;
   const fuelSavingLapsPerStint = fuelSavingResult?.lapsPerStint || 0;
+  const extraFuelSavingLapsPerStint = extraFuelSavingResult?.lapsPerStint || 0;
   
   // Calculate adjustments based on actual strategy differences
   // Use the standard strategy as baseline
   const baseLapsPerStint = standardLapsPerStint || (stintPlan[0]?.laps || 0);
   
   const lapModeOptions = [
+    { 
+      value: 'extra-fuel-save', 
+      label: 'Extra Fuel Save', 
+      lapAdjustment: extraFuelSavingLapsPerStint > 0 ? extraFuelSavingLapsPerStint - baseLapsPerStint : 2 
+    },
     { 
       value: 'fuel-save', 
       label: 'Fuel Save', 
@@ -3445,6 +3470,7 @@ const PlannerApp = () => {
 
   const standardResult = useMemo(() => computePlan(form, 'standard'), [form]);
   const fuelSavingResult = useMemo(() => computePlan(form, 'fuel-saving'), [form]);
+  const extraFuelSavingResult = useMemo(() => computePlan(form, 'extra-fuel-saving'), [form]);
   const withAlpha = (hex, alpha = '33') => {
     if (!hex || typeof hex !== 'string') return hex;
     const normalized = hex.replace('#', '');
@@ -3455,6 +3481,7 @@ const PlannerApp = () => {
   const strategyConfigs = [
     { name: 'Standard', key: 'standard', result: standardResult, color: '#1ea7ff' },
     { name: 'Fuel-Saving', key: 'fuel-saving', result: fuelSavingResult, color: '#10b981' },
+    { name: 'Extra Fuel-Saving', key: 'extra-fuel-saving', result: extraFuelSavingResult, color: '#f59e0b' },
   ];
   const rankedStrategies = strategyConfigs
     .filter((entry) => !entry.result.errors?.length)
@@ -3873,7 +3900,7 @@ const PlannerApp = () => {
               placeholder="MM:SS.sss"
               value={form.fuelSavingLapTime}
               onChange={handleInput('fuelSavingLapTime')}
-              helpText="Slower lap time when fuel saving (typically 2-3s slower)."
+              helpText="Slower lap time when fuel saving (typically 0.2-0.5s slower)."
             />
             <InputField
               label="Fuel-Saving Fuel / Lap"
@@ -3882,7 +3909,25 @@ const PlannerApp = () => {
               value={form.fuelSavingFuelPerLap}
               onChange={handleInput('fuelSavingFuelPerLap')}
               step="0.01"
-              helpText="Lower fuel consumption when fuel saving (typically 0.1-0.2L less)."
+              helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
+            />
+          </div>
+          <div className="input-row">
+            <InputField
+              label="Extra Fuel-Saving Lap Time"
+              placeholder="MM:SS.sss"
+              value={form.extraFuelSavingLapTime}
+              onChange={handleInput('extraFuelSavingLapTime')}
+              helpText="Slowest lap time for maximum fuel efficiency (typically 0.3-0.5s slower than fuel-saving)."
+            />
+            <InputField
+              label="Extra Fuel-Saving Fuel / Lap"
+              suffix="L"
+              type="number"
+              value={form.extraFuelSavingFuelPerLap}
+              onChange={handleInput('extraFuelSavingFuelPerLap')}
+              step="0.01"
+              helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
             />
           </div>
         </div>
@@ -3897,6 +3942,7 @@ const PlannerApp = () => {
           form={form}
           standardResult={standardResult}
           fuelSavingResult={fuelSavingResult}
+          extraFuelSavingResult={extraFuelSavingResult}
           strategyConfigs={strategyConfigs}
           selectedStrategy={selectedStrategy}
           setSelectedStrategy={setSelectedStrategy}
@@ -4036,6 +4082,7 @@ const PlannerApp = () => {
             raceDurationMinutes={form.raceDurationMinutes}
             standardResult={standardResult}
             fuelSavingResult={fuelSavingResult}
+            extraFuelSavingResult={extraFuelSavingResult}
           />
         ) : null}
           </div>
