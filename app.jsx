@@ -374,26 +374,60 @@ const computePlan = (form, strategyMode = 'standard') => {
     simulatedTime += currentLapTime;
     simulatedLaps += 1;
     
+    console.log(`Completed lap ${simulatedLaps}. Time: ${simulatedTime.toFixed(1)}s`);
+    
     // Check if we need a pit stop AFTER completing this lap
     // Pit stops occur after completing a full stint (multiples of maxLapsPerStintWithFuel)
     if (simulatedLaps > 0 && simulatedLaps % maxLapsPerStintWithFuel === 0) {
-      console.log(`Pit stop after lap ${simulatedLaps}. Time before pit: ${simulatedTime.toFixed(1)}s`);
+      console.log(`Pit stop required after lap ${simulatedLaps}. Time before pit: ${simulatedTime.toFixed(1)}s`);
       
-      // Add pit stop time
-      simulatedTime += estimatedPerStopLoss;
+      // Calculate time after pit stop
+      const timeAfterPitStop = simulatedTime + estimatedPerStopLoss;
       
       // Check if timer hits zero during pit stop
-      if (simulatedTime >= raceDurationSeconds) {
-        // Timer hit zero during pit stop
+      if (timeAfterPitStop > raceDurationSeconds) {
+        // Timer hits zero during pit stop
+        // We completed the lap, but timer hit during pit stop
+        // Since we finished the lap before timer hit zero, fractional = completed laps (integer)
         fractionalLapsAtZero = simulatedLaps;
-        fullLapsForPlanning = simulatedLaps + 1; // White flag rule
+        
+        // White flag rule: can complete current lap (just finished) + 1 more
+        fullLapsForPlanning = simulatedLaps + 1;
+        
         console.log('Timer hit zero during pit stop after lap', simulatedLaps);
-        console.log('Fractional laps at zero:', fractionalLapsAtZero);
+        console.log('Time after pit would be:', timeAfterPitStop.toFixed(1), 'seconds (exceeds', raceDurationSeconds, 's)');
+        console.log('Fractional laps at zero:', fractionalLapsAtZero.toFixed(3));
         console.log('Full laps for planning (white flag):', fullLapsForPlanning);
         break;
       }
       
+      // Check if we can start the next lap after pit stop
+      // Use maxRaceTimeSeconds to account for white flag rule
+      if (timeAfterPitStop + lapSeconds > maxRaceTimeSeconds) {
+        // Can't complete another full lap after pit stop
+        // But we can still start it (white flag rule)
+        // Calculate how much of the next lap we can complete
+        const timeRemainingAfterPit = maxRaceTimeSeconds - timeAfterPitStop;
+        if (timeRemainingAfterPit > 0) {
+          const fractionOfNextLap = timeRemainingAfterPit / lapSeconds;
+          fractionalLapsAtZero = simulatedLaps + fractionOfNextLap;
+        } else {
+          fractionalLapsAtZero = simulatedLaps;
+        }
+        fullLapsForPlanning = simulatedLaps + 1;
+        
+        console.log('Cannot complete full lap after pit stop after lap', simulatedLaps);
+        console.log('Time remaining after pit:', (maxRaceTimeSeconds - timeAfterPitStop).toFixed(1), 'seconds');
+        console.log('Fractional laps at zero:', fractionalLapsAtZero.toFixed(3));
+        console.log('Full laps for planning (white flag):', fullLapsForPlanning);
+        break;
+      }
+      
+      // Pit stop is within time limit and we can continue, add it to simulation
+      simulatedTime = timeAfterPitStop;
+      
       console.log(`Pit stop completed. Time after pit: ${simulatedTime.toFixed(1)}s`);
+      console.log(`Can continue to lap ${simulatedLaps + 1} (would finish at ${(simulatedTime + lapSeconds).toFixed(1)}s)`);
     }
   }
   
