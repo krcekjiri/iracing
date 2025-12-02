@@ -254,6 +254,117 @@ const generateValidationMessages = (fuelValidation, sufficiencyValidation, laps)
 
 // ==================== END VALIDATION HELPERS ====================
 
+// ==================== SIMULATION FUNCTION ====================
+// Reusable function to simulate race lap-by-lap
+const simulateRace = ({
+  raceDurationSeconds,
+  maxRaceTimeSeconds,
+  lapSeconds,
+  maxLapsPerStintWithFuel,
+  outLapPenalties,
+  estimatedPerStopLoss,
+}) => {
+  let simulatedTime = 0;
+  let simulatedLaps = 0;
+  let fractionalLapsAtZero = 0;
+  let fullLapsForPlanning = 0;
+  
+  // Simulate lap by lap until timer hits zero
+  while (simulatedTime < raceDurationSeconds) {
+    const lapNumber = simulatedLaps + 1;
+    let currentLapTime = lapSeconds;
+    
+    // Apply outlap penalties for first few laps
+    if (lapNumber <= outLapPenalties.length && outLapPenalties[lapNumber - 1]) {
+      currentLapTime += outLapPenalties[lapNumber - 1];
+    }
+    
+    // Check if completing this lap would exceed race duration
+    const timeAfterThisLap = simulatedTime + currentLapTime;
+    
+    if (timeAfterThisLap > raceDurationSeconds) {
+      // Timer hits zero during this lap
+      const timeIntoThisLap = raceDurationSeconds - simulatedTime;
+      const fractionOfLapCompleted = timeIntoThisLap / currentLapTime;
+      
+      fractionalLapsAtZero = simulatedLaps + fractionOfLapCompleted;
+      fullLapsForPlanning = simulatedLaps + 1;
+      break;
+    }
+    
+    // Complete the lap
+    simulatedTime += currentLapTime;
+    simulatedLaps += 1;
+    
+    // Check if we need a pit stop AFTER completing this lap
+    if (simulatedLaps > 0 && simulatedLaps % maxLapsPerStintWithFuel === 0) {
+      const timeAfterPitStop = simulatedTime + estimatedPerStopLoss;
+      
+      // Check if timer hits zero during pit stop
+      if (timeAfterPitStop > raceDurationSeconds) {
+        const timeRemainingAfterLap = maxRaceTimeSeconds - simulatedTime;
+        
+        if (timeRemainingAfterLap > estimatedPerStopLoss) {
+          const timeRemainingAfterPit = maxRaceTimeSeconds - timeAfterPitStop;
+          
+          if (timeRemainingAfterPit > 0) {
+            const fractionOfNextLap = timeRemainingAfterPit / lapSeconds;
+            fractionalLapsAtZero = simulatedLaps + Math.min(fractionOfNextLap, 1);
+          } else {
+            fractionalLapsAtZero = simulatedLaps;
+          }
+        } else {
+          fractionalLapsAtZero = simulatedLaps;
+        }
+        
+        fullLapsForPlanning = simulatedLaps + 1;
+        break;
+      }
+      
+      // Check if we can start the next lap after pit stop
+      if (timeAfterPitStop + lapSeconds > maxRaceTimeSeconds) {
+        const timeRemainingAfterPit = maxRaceTimeSeconds - timeAfterPitStop;
+        if (timeRemainingAfterPit > 0) {
+          const fractionOfNextLap = timeRemainingAfterPit / lapSeconds;
+          fractionalLapsAtZero = simulatedLaps + fractionOfNextLap;
+        } else {
+          fractionalLapsAtZero = simulatedLaps;
+        }
+        fullLapsForPlanning = simulatedLaps + 1;
+        break;
+      }
+      
+      // Pit stop is within time limit, continue
+      simulatedTime = timeAfterPitStop;
+    }
+  }
+  
+  // If we didn't hit the limit in the loop, calculate from remaining time
+  if (fractionalLapsAtZero === 0 && fullLapsForPlanning === 0) {
+    if (simulatedTime < raceDurationSeconds) {
+      const timeRemaining = raceDurationSeconds - simulatedTime;
+      const additionalLaps = timeRemaining / lapSeconds;
+      fractionalLapsAtZero = simulatedLaps + additionalLaps;
+      fullLapsForPlanning = simulatedLaps + Math.ceil(additionalLaps);
+      if (additionalLaps > 0 && additionalLaps < 1) {
+        fullLapsForPlanning = simulatedLaps + 1;
+      }
+    } else {
+      fractionalLapsAtZero = simulatedLaps;
+      fullLapsForPlanning = simulatedLaps + 1;
+    }
+  }
+  
+  return {
+    fractionalLapsAtZero,
+    fullLapsForPlanning,
+    simulatedLaps,
+    simulatedTime,
+  };
+};
+
+// ==================== END SIMULATION FUNCTION ====================
+
 const computePlan = (form, strategyMode = 'standard') => {
   // ========== STEP 1: Select strategy parameters ==========
   let lapTime, fuelPerLap;
@@ -262,9 +373,6 @@ const computePlan = (form, strategyMode = 'standard') => {
   if (strategyMode === 'fuel-saving') {
     lapTime = form.fuelSavingLapTime || form.averageLapTime;
     fuelPerLap = safeNumber(form.fuelSavingFuelPerLap) || safeNumber(form.fuelPerLap) || 3.07;
-  } else if (strategyMode === 'extra-fuel-saving') {
-    lapTime = form.extraFuelSavingLapTime || form.averageLapTime;
-    fuelPerLap = safeNumber(form.extraFuelSavingFuelPerLap) || safeNumber(form.fuelPerLap) || 2.98;
   } else {
     lapTime = form.averageLapTime;
     fuelPerLap = safeNumber(form.fuelPerLap) || 3.18;
@@ -329,11 +437,6 @@ const computePlan = (form, strategyMode = 'standard') => {
     : maxLapsPerStintWithFuel;
 
   // ========== STEP 4: Simulate Entire Race Lap-by-Lap ==========
-  let simulatedTime = 0;
-  let simulatedLaps = 0;
-  let fractionalLapsAtZero = 0;
-  let fullLapsForPlanning = 0;
-  
   // Estimate pit time per stop
   const estimatedFuelingTime = 41.1; // Full tank
   const estimatedPerStopLoss = pitLaneDelta + estimatedFuelingTime;
@@ -342,142 +445,22 @@ const computePlan = (form, strategyMode = 'standard') => {
   console.log('Estimated pit stop time:', estimatedPerStopLoss, 'seconds');
   console.log('Pit stops will occur after laps:', maxLapsPerStintWithFuel, maxLapsPerStintWithFuel * 2, maxLapsPerStintWithFuel * 3);
   
-  // Simulate lap by lap until timer hits zero
-  while (simulatedTime < raceDurationSeconds) {
-    const lapNumber = simulatedLaps + 1;
-    let currentLapTime = lapSeconds;
-    
-    // Apply outlap penalties for first few laps
-    if (lapNumber <= outLapPenalties.length && outLapPenalties[lapNumber - 1]) {
-      currentLapTime += outLapPenalties[lapNumber - 1];
-    }
-    
-    // Check if completing this lap would exceed race duration
-    const timeAfterThisLap = simulatedTime + currentLapTime;
-    
-    if (timeAfterThisLap > raceDurationSeconds) {
-      // Timer hits zero during this lap
-      // Calculate how much of this lap was completed
-      const timeIntoThisLap = raceDurationSeconds - simulatedTime;
-      const fractionOfLapCompleted = timeIntoThisLap / currentLapTime;
-      
-      // Fractional laps = completed laps + fraction of current lap
-      fractionalLapsAtZero = simulatedLaps + fractionOfLapCompleted;
-      
-      // White flag rule: can complete current lap + 1 more
-      fullLapsForPlanning = simulatedLaps + 1;
-      
-      console.log('Timer hit zero during lap', lapNumber);
-      console.log('Time into lap:', timeIntoThisLap, 'seconds');
-      console.log('Fraction of lap completed:', fractionOfLapCompleted.toFixed(3));
-      console.log('Fractional laps at zero:', fractionalLapsAtZero.toFixed(3));
-      console.log('Full laps for planning (white flag):', fullLapsForPlanning);
-      break;
-    }
-    
-    // Complete the lap
-    simulatedTime += currentLapTime;
-    simulatedLaps += 1;
-    
-    console.log(`Completed lap ${simulatedLaps}. Time: ${simulatedTime.toFixed(1)}s`);
-    
-    // Check if we need a pit stop AFTER completing this lap
-    // Pit stops occur after completing a full stint (multiples of maxLapsPerStintWithFuel)
-    if (simulatedLaps > 0 && simulatedLaps % maxLapsPerStintWithFuel === 0) {
-      console.log(`Pit stop required after lap ${simulatedLaps}. Time before pit: ${simulatedTime.toFixed(1)}s`);
-      
-      // Calculate time after pit stop
-      const timeAfterPitStop = simulatedTime + estimatedPerStopLoss;
-      
-      // Check if timer hits zero during pit stop
-      if (timeAfterPitStop > raceDurationSeconds) {
-        // Timer hits zero during pit stop
-        // But with white flag rule, we can still complete the lap we just finished + 1 more
-        // Calculate how much time remains after completing the lap (before pit stop)
-        const timeRemainingAfterLap = maxRaceTimeSeconds - simulatedTime;
-        
-        if (timeRemainingAfterLap > estimatedPerStopLoss) {
-          // We have time after pit stop to complete part of next lap
-          const timeRemainingAfterPit = maxRaceTimeSeconds - timeAfterPitStop;
-          
-          if (timeRemainingAfterPit > 0) {
-            // Calculate fractional laps: completed laps + fraction of next lap possible
-            const fractionOfNextLap = timeRemainingAfterPit / lapSeconds;
-            fractionalLapsAtZero = simulatedLaps + Math.min(fractionOfNextLap, 1);
-          } else {
-            // No time after pit stop
-            fractionalLapsAtZero = simulatedLaps;
-          }
-        } else {
-          // Not enough time even for pit stop with white flag
-          fractionalLapsAtZero = simulatedLaps;
-        }
-        
-        // White flag rule: can complete current lap (just finished) + 1 more
-        fullLapsForPlanning = simulatedLaps + 1;
-        
-        console.log('Timer hit zero during pit stop after lap', simulatedLaps);
-        console.log('Time after pit would be:', timeAfterPitStop.toFixed(1), 'seconds (exceeds', raceDurationSeconds, 's)');
-        console.log('Time remaining with white flag:', timeRemainingAfterLap.toFixed(1), 'seconds');
-        if (timeRemainingAfterLap > estimatedPerStopLoss) {
-          console.log('Time remaining after pit:', (maxRaceTimeSeconds - timeAfterPitStop).toFixed(1), 'seconds');
-        }
-        console.log('Fractional laps at zero:', fractionalLapsAtZero.toFixed(3));
-        console.log('Full laps for planning (white flag):', fullLapsForPlanning);
-        break;
-      }
-      
-      // Check if we can start the next lap after pit stop
-      // Use maxRaceTimeSeconds to account for white flag rule
-      if (timeAfterPitStop + lapSeconds > maxRaceTimeSeconds) {
-        // Can't complete another full lap after pit stop
-        // But we can still start it (white flag rule)
-        // Calculate how much of the next lap we can complete
-        const timeRemainingAfterPit = maxRaceTimeSeconds - timeAfterPitStop;
-        if (timeRemainingAfterPit > 0) {
-          const fractionOfNextLap = timeRemainingAfterPit / lapSeconds;
-          fractionalLapsAtZero = simulatedLaps + fractionOfNextLap;
-        } else {
-          fractionalLapsAtZero = simulatedLaps;
-        }
-        fullLapsForPlanning = simulatedLaps + 1;
-        
-        console.log('Cannot complete full lap after pit stop after lap', simulatedLaps);
-        console.log('Time remaining after pit:', (maxRaceTimeSeconds - timeAfterPitStop).toFixed(1), 'seconds');
-        console.log('Fractional laps at zero:', fractionalLapsAtZero.toFixed(3));
-        console.log('Full laps for planning (white flag):', fullLapsForPlanning);
-        break;
-      }
-      
-      // Pit stop is within time limit and we can continue, add it to simulation
-      simulatedTime = timeAfterPitStop;
-      
-      console.log(`Pit stop completed. Time after pit: ${simulatedTime.toFixed(1)}s`);
-      console.log(`Can continue to lap ${simulatedLaps + 1} (would finish at ${(simulatedTime + lapSeconds).toFixed(1)}s)`);
-    }
-  }
+  // Simulate Candidate A (Pure Strategy)
+  const candidateA = simulateRace({
+    raceDurationSeconds,
+    maxRaceTimeSeconds,
+    lapSeconds,
+    maxLapsPerStintWithFuel,
+    outLapPenalties,
+    estimatedPerStopLoss,
+  });
   
-  // If we didn't hit the limit in the loop, calculate from remaining time
-  if (fractionalLapsAtZero === 0 && fullLapsForPlanning === 0) {
-    if (simulatedTime < raceDurationSeconds) {
-      // Still have time remaining
-      const timeRemaining = raceDurationSeconds - simulatedTime;
-      const additionalLaps = timeRemaining / lapSeconds;
-      fractionalLapsAtZero = simulatedLaps + additionalLaps;
-      fullLapsForPlanning = simulatedLaps + Math.ceil(additionalLaps);
-      if (additionalLaps > 0 && additionalLaps < 1) {
-        fullLapsForPlanning = simulatedLaps + 1;
-      }
-      console.log('Simulation completed with time remaining');
-      console.log('Additional laps possible:', additionalLaps.toFixed(3));
-    } else {
-      // Time ran out exactly
-      fractionalLapsAtZero = simulatedLaps;
-      fullLapsForPlanning = simulatedLaps + 1;
-    }
-  }
+  let fractionalLapsAtZero = candidateA.fractionalLapsAtZero;
+  let fullLapsForPlanning = candidateA.fullLapsForPlanning;
+  let simulatedLaps = candidateA.simulatedLaps;
+  let simulatedTime = candidateA.simulatedTime;
   
-  console.log('=== Simulation Results ===');
+  console.log('=== Candidate A (Pure Strategy) Results ===');
   console.log('Completed laps:', simulatedLaps);
   console.log('Simulated time:', simulatedTime.toFixed(1), 'seconds');
   console.log('Fractional laps at zero:', fractionalLapsAtZero.toFixed(3));
@@ -562,10 +545,134 @@ const computePlan = (form, strategyMode = 'standard') => {
     }
   }
 
+  // ========== TWO-CANDIDATE COMPARISON: Pure vs Mixed Strategy ==========
+  // Candidate A: Pure strategy (all stints use same mode)
+  const candidateADistribution = {
+    stintCount,
+    baseLapsPerStint,
+    extraLaps,
+    fractionalLaps: fractionalLapsAtZero,
+    fullLaps: fullLapsForPlanning,
+  };
+  
+  // Calculate last stint laps for Candidate A
+  const candidateALastStintLaps = baseLapsPerStint; // Last stint doesn't get extra laps
+  
+  // Check if we should generate Candidate B (mixed strategy with extra-fuel-saving last stint)
+  const extraFuelSavingLapTime = form.extraFuelSavingLapTime;
+  const extraFuelSavingFuelPerLap = safeNumber(form.extraFuelSavingFuelPerLap);
+  const shouldTryCandidateB = 
+    candidateALastStintLaps < 5 && 
+    candidateALastStintLaps > 0 && 
+    stintCount > 1 &&
+    extraFuelSavingLapTime && 
+    extraFuelSavingFuelPerLap > 0;
+  
+  let finalDistribution = candidateADistribution;
+  let useExtraFuelSavingForLastStint = false;
+  
+  if (shouldTryCandidateB) {
+    console.log('=== Generating Candidate B (Mixed Strategy) ===');
+    console.log('Candidate A last stint:', candidateALastStintLaps, 'laps (too short)');
+    
+    // Candidate B: Try extending last stint by 1 lap using extra-fuel-saving
+    const candidateBLastStintLaps = candidateALastStintLaps + 1;
+    
+    // Check if last stint would exceed max with extra-fuel-saving
+    const extraFuelSavingMaxLaps = Math.floor(tankCapacity / extraFuelSavingFuelPerLap);
+    
+    if (candidateBLastStintLaps <= extraFuelSavingMaxLaps) {
+      // Calculate fuel needed for last stint
+      const lastStintFuelNeeded = candidateBLastStintLaps * extraFuelSavingFuelPerLap + reserveLiters;
+      const requiredFuelPerLap = (tankCapacity - reserveLiters - (stintCount === 1 ? formationLapFuel : 0)) / candidateBLastStintLaps;
+      
+      // Validate fuel feasibility
+      const minAllowedFuelPerLap = standardFuelPerLap * 0.90;
+      const isFuelFeasible = 
+        requiredFuelPerLap >= extraFuelSavingFuelPerLap && 
+        requiredFuelPerLap >= minAllowedFuelPerLap &&
+        lastStintFuelNeeded <= tankCapacity;
+      
+      if (isFuelFeasible) {
+        // Simulate Candidate B
+        // For early stints, use current strategy's lap time
+        // For last stint, use extra-fuel-saving lap time (slower)
+        const extraFuelSavingLapSeconds = parseLapTime(extraFuelSavingLapTime);
+        
+        // Calculate new total laps (one more than Candidate A)
+        const candidateBTotalLaps = totalLaps + 1;
+        
+        // Recalculate distribution with one more lap
+        const candidateBBaseLaps = Math.floor(candidateBTotalLaps / stintCount);
+        const candidateBExtraLaps = candidateBTotalLaps % stintCount;
+        
+        // Simulate Candidate B with mixed lap times
+        // Early stints use current strategy's lap time, last stint uses extra-fuel-saving
+        // Approximate: Candidate B has same early stints as A, but extends last stint by 1 lap
+        // Time difference: one extra lap at extra-fuel-saving pace (slower)
+        const timeDifference = extraFuelSavingLapSeconds - lapSeconds;
+        
+        // Candidate B will complete at least as many laps as A (has one more total lap)
+        // But the slower last stint lap time may reduce fractional laps
+        // Heuristic: if time difference is small relative to race duration, Candidate B wins
+        // More accurate: Candidate B completes candidateBTotalLaps if time allows
+        const candidateBFractionalLaps = candidateA.fractionalLapsAtZero + 1; // One more lap
+        // Adjust for slower last stint: subtract time difference impact
+        const timeImpact = timeDifference / raceDurationSeconds; // Fraction of race lost
+        const adjustedFractionalLaps = candidateBFractionalLaps - timeImpact;
+        
+        console.log('Candidate B analysis:');
+        console.log('  Total laps:', candidateBTotalLaps);
+        console.log('  Time difference per lap:', timeDifference.toFixed(2), 'seconds');
+        console.log('  Adjusted fractional laps:', adjustedFractionalLaps.toFixed(3));
+        console.log('Candidate A fractional laps:', candidateA.fractionalLapsAtZero.toFixed(3));
+        
+        // Compare: pick winner based on adjusted fractional laps
+        if (adjustedFractionalLaps > candidateA.fractionalLapsAtZero) {
+          // Candidate B wins - use it
+          finalDistribution = {
+            stintCount,
+            baseLapsPerStint: candidateBBaseLaps,
+            extraLaps: candidateBExtraLaps,
+            fractionalLaps: adjustedFractionalLaps,
+            fullLaps: candidateBTotalLaps, // Integer laps
+          };
+          useExtraFuelSavingForLastStint = true;
+          fractionalLapsAtZero = adjustedFractionalLaps;
+          fullLapsForPlanning = candidateBTotalLaps;
+          totalLaps = candidateBTotalLaps;
+          
+          console.log('✅ Candidate B selected (Mixed Strategy)');
+          console.log('Last stint will use Extra Fuel-Saving mode');
+        } else {
+          console.log('✅ Candidate A selected (Pure Strategy)');
+          console.log('Slower last stint negates benefit of extra lap');
+        }
+      } else {
+        console.log('❌ Candidate B rejected: Fuel not feasible');
+        console.log('Required:', requiredFuelPerLap.toFixed(2), 'L/lap');
+        console.log('Available:', extraFuelSavingFuelPerLap.toFixed(2), 'L/lap');
+        console.log('Minimum:', minAllowedFuelPerLap.toFixed(2), 'L/lap');
+      }
+    } else {
+      console.log('❌ Candidate B rejected: Last stint would exceed max laps');
+      console.log('Required:', candidateBLastStintLaps, 'laps');
+      console.log('Max with extra-fuel-saving:', extraFuelSavingMaxLaps, 'laps');
+    }
+  } else {
+    console.log('Using Candidate A (Pure Strategy)');
+  }
+  
+  // Update distribution with final choice
+  stintCount = finalDistribution.stintCount;
+  baseLapsPerStint = finalDistribution.baseLapsPerStint;
+  extraLaps = finalDistribution.extraLaps;
+  pitStops = Math.max(0, stintCount - 1);
+
   // ========== STEP 7: Build Stint Plan with Fuel Calculations ==========
   const stintPlan = [];
   let totalOutLapPenaltySeconds = 0;
-  let completedLaps = 0;
+  completedLaps = 0;
   let completedSeconds = 0;
   let totalPitTime = 0;
   let fuelInTank = tankCapacity; // Start with full tank
@@ -583,15 +690,31 @@ const computePlan = (form, strategyMode = 'standard') => {
     const isFirstStint = idx === 0;
     const isLastStint = idx === stintCount - 1;
     
+    // Determine stint mode
+    let stintMode = strategyMode; // Default to current strategy mode
+    if (isLastStint && useExtraFuelSavingForLastStint) {
+      stintMode = 'extra-fuel-saving';
+    }
+    
+    // Use appropriate fuel consumption for this stint
+    const stintFuelPerLap = stintMode === 'extra-fuel-saving' 
+      ? extraFuelSavingFuelPerLap 
+      : fuelPerLap;
+    
+    // Use appropriate lap time for this stint
+    const stintLapSeconds = stintMode === 'extra-fuel-saving' && extraFuelSavingLapTime
+      ? parseLapTime(extraFuelSavingLapTime)
+      : lapSeconds;
+    
     // Calculate outlap penalties for this stint
     const penaltiesForStint = outLapPenalties
       .slice(0, Math.min(outLapPenalties.length, lapsThisStint))
       .filter(Boolean);
     const penaltySeconds = penaltiesForStint.reduce((acc, val) => acc + val, 0);
-    const stintSeconds = lapsThisStint * lapSeconds + penaltySeconds;
+    const stintSeconds = lapsThisStint * stintLapSeconds + penaltySeconds;
     
     // ========== Calculate Fuel Requirements ==========
-    const baseStintFuel = lapsThisStint * fuelPerLap + reserveLiters;
+    const baseStintFuel = lapsThisStint * stintFuelPerLap + reserveLiters;
     const stintFuelNeeded = isFirstStint && formationLapFuel > 0
       ? Math.max(0, baseStintFuel - formationLapFuel)
       : baseStintFuel;
@@ -604,8 +727,13 @@ const computePlan = (form, strategyMode = 'standard') => {
     if (idx < stintCount - 1) {
       if (idx === stintCount - 2) {
         // Last pit stop before final stint - splash-and-dash
+        const nextStint = stintPlan.length === stintCount - 2 ? null : null; // Will be last stint
         const lastStintLaps = totalLaps - completedLaps - lapsThisStint;
-        const lastStintFuelNeeded = lastStintLaps * fuelPerLap + reserveLiters;
+        // Use extra-fuel-saving fuel consumption if last stint uses it
+        const lastStintFuelPerLap = useExtraFuelSavingForLastStint 
+          ? extraFuelSavingFuelPerLap 
+          : fuelPerLap;
+        const lastStintFuelNeeded = lastStintLaps * lastStintFuelPerLap + reserveLiters;
         fuelToAdd = Math.max(0, lastStintFuelNeeded - fuelLeft);
         fuelToAdd = Math.min(fuelToAdd, tankCapacity - fuelLeft);
       } else {
@@ -629,7 +757,7 @@ const computePlan = (form, strategyMode = 'standard') => {
       fuelInTank,
       fuelUsed,
       lapsThisStint,
-      fuelPerLap,
+      stintFuelPerLap, // Use stint-specific fuel per lap
       reserveLiters
     );
     
@@ -661,7 +789,8 @@ const computePlan = (form, strategyMode = 'standard') => {
       perStopLoss: perStopLoss,
       fuelTarget: fuelValidation.targetPerLap,
       validation: validation,
-      strategyFuelPerLap: fuelPerLap,
+      strategyFuelPerLap: stintFuelPerLap,
+      stintMode: stintMode, // Add mode indicator
     });
 
     completedLaps += lapsThisStint;
@@ -794,7 +923,6 @@ const StrategyTab = ({
   form,
   standardResult,
   fuelSavingResult,
-  extraFuelSavingResult,
   strategyConfigs,
   selectedStrategy,
   setSelectedStrategy,
@@ -802,11 +930,7 @@ const StrategyTab = ({
   reservePerStint,
 }) => {
   // Get active result based on selected strategy
-  const activeResult = selectedStrategy === 'standard' 
-    ? standardResult 
-    : selectedStrategy === 'fuel-saving' 
-      ? fuelSavingResult 
-      : extraFuelSavingResult;
+  const activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
   
   // Calculate average lap times for display
   const calculateAvgLaps = (result) => {
@@ -847,7 +971,7 @@ const StrategyTab = ({
       </div>
 
       {/* Strategy Comparison Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 24 }}>
         {strategyConfigs && strategyConfigs.length > 0 ? (
           strategyConfigs
             .filter(strategy => strategy && strategy.result)
@@ -949,11 +1073,7 @@ const StrategyTab = ({
       {!activeResult.errors?.length && activeResult.stintPlan?.length > 0 ? (
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Detailed Stint Planner - {
-              selectedStrategy === 'standard' ? 'Standard' 
-              : selectedStrategy === 'fuel-saving' ? 'Fuel-Saving' 
-              : 'Extra Fuel-Saving'
-            } Strategy</h3>
+            <h3>Detailed Stint Planner - {selectedStrategy === 'standard' ? 'Standard' : 'Fuel-Saving'} Strategy</h3>
             <span className="stat-label">
               Fuel target capped at tank capacity ({form.tankCapacity || 0} L)
             </span>
@@ -1587,6 +1707,18 @@ const DetailedStintPlanner = ({
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <strong>Stint {stint.id}</strong>
+                    {stint.stintMode === 'extra-fuel-saving' && (
+                      <span style={{
+                        fontSize: '0.7rem',
+                        color: '#f59e0b',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}>
+                        ⚡ Extra Fuel-Saving
+                      </span>
+                    )}
                     {isUpdating && (
                       <span style={{ 
                         fontSize: '0.7rem', 
@@ -1617,6 +1749,11 @@ const DetailedStintPlanner = ({
                   <div className="stint-meta">
                     <span>
                       Laps {stint.startLap}–{stint.endLap} ({stint.laps} lap{stint.laps > 1 ? 's' : ''})
+                      {stint.stintMode === 'extra-fuel-saving' && (
+                        <span style={{ marginLeft: '6px', fontSize: '0.65rem', color: '#f59e0b' }}>
+                          (Extra Fuel-Saving ⚡)
+                        </span>
+                      )}
                     </span>
                     <span>{formatDuration(stint.stintDuration)}</span>
                   </div>
@@ -1730,6 +1867,25 @@ const DetailedStintPlanner = ({
                     borderRadius: '6px',
                     fontSize: '0.85rem',
                   }}>
+                    {stint.stintMode && (
+                      <div style={{ 
+                        marginBottom: '12px', 
+                        padding: '6px 8px', 
+                        background: stint.stintMode === 'extra-fuel-saving' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(56, 189, 248, 0.1)',
+                        borderRadius: '4px',
+                        border: `1px solid ${stint.stintMode === 'extra-fuel-saving' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`,
+                      }}>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Mode:</div>
+                        <div style={{ 
+                          fontWeight: 600,
+                          color: stint.stintMode === 'extra-fuel-saving' ? '#f59e0b' : 'var(--accent)',
+                        }}>
+                          {stint.stintMode === 'extra-fuel-saving' ? '⚡ Extra Fuel-Saving' : 
+                           stint.stintMode === 'fuel-saving' ? 'Fuel-Saving' : 
+                           'Standard'}
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       <div>
                         <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Fuel Used:</div>
@@ -2869,7 +3025,6 @@ const ScheduleSummary = ({
   raceDurationMinutes,
   standardResult,
   fuelSavingResult,
-  extraFuelSavingResult,
 }) => {
   if (!stintPlan?.length || !drivers?.length || !raceStartGMT) {
     return (
@@ -2888,18 +3043,12 @@ const ScheduleSummary = ({
   // Calculate laps per stint for each strategy
   const standardLapsPerStint = standardResult?.lapsPerStint || 0;
   const fuelSavingLapsPerStint = fuelSavingResult?.lapsPerStint || 0;
-  const extraFuelSavingLapsPerStint = extraFuelSavingResult?.lapsPerStint || 0;
   
   // Calculate adjustments based on actual strategy differences
   // Use the standard strategy as baseline
   const baseLapsPerStint = standardLapsPerStint || (stintPlan[0]?.laps || 0);
   
   const lapModeOptions = [
-    { 
-      value: 'extra-fuel-save', 
-      label: 'Extra Fuel Save', 
-      lapAdjustment: extraFuelSavingLapsPerStint > 0 ? extraFuelSavingLapsPerStint - baseLapsPerStint : 2 
-    },
     { 
       value: 'fuel-save', 
       label: 'Fuel Save', 
@@ -3470,7 +3619,6 @@ const PlannerApp = () => {
 
   const standardResult = useMemo(() => computePlan(form, 'standard'), [form]);
   const fuelSavingResult = useMemo(() => computePlan(form, 'fuel-saving'), [form]);
-  const extraFuelSavingResult = useMemo(() => computePlan(form, 'extra-fuel-saving'), [form]);
   const withAlpha = (hex, alpha = '33') => {
     if (!hex || typeof hex !== 'string') return hex;
     const normalized = hex.replace('#', '');
@@ -3481,7 +3629,6 @@ const PlannerApp = () => {
   const strategyConfigs = [
     { name: 'Standard', key: 'standard', result: standardResult, color: '#1ea7ff' },
     { name: 'Fuel-Saving', key: 'fuel-saving', result: fuelSavingResult, color: '#10b981' },
-    { name: 'Extra Fuel-Saving', key: 'extra-fuel-saving', result: extraFuelSavingResult, color: '#f59e0b' },
   ];
   const rankedStrategies = strategyConfigs
     .filter((entry) => !entry.result.errors?.length)
@@ -3942,7 +4089,6 @@ const PlannerApp = () => {
           form={form}
           standardResult={standardResult}
           fuelSavingResult={fuelSavingResult}
-          extraFuelSavingResult={extraFuelSavingResult}
           strategyConfigs={strategyConfigs}
           selectedStrategy={selectedStrategy}
           setSelectedStrategy={setSelectedStrategy}
@@ -4082,7 +4228,6 @@ const PlannerApp = () => {
             raceDurationMinutes={form.raceDurationMinutes}
             standardResult={standardResult}
             fuelSavingResult={fuelSavingResult}
-            extraFuelSavingResult={extraFuelSavingResult}
           />
         ) : null}
           </div>
