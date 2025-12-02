@@ -600,96 +600,206 @@ const computePlan = (form, strategyMode = 'standard') => {
   let finalDistribution = candidateADistribution;
   let useExtraFuelSavingForLastStint = false;
   
+  // ========== CANDIDATE COMPARISON: Show Both Candidates ==========
+  console.log('=== CANDIDATE A (Pure Strategy) ===');
+  const candidateADistributionPreview = [];
+  for (let i = 0; i < stintCount; i++) {
+    const laps = baseLapsPerStint + (i < extraLaps ? 1 : 0);
+    candidateADistributionPreview.push(laps);
+  }
+  console.log('Distribution:', candidateADistributionPreview.join(' + '), '=', totalLaps, 'laps');
+  console.log('Stint count:', stintCount, '(', pitStops, 'stops)');
+  console.log('Last stint:', candidateALastStintLaps, 'laps');
+  console.log('Fractional laps:', candidateA.fractionalLapsAtZero.toFixed(3));
+  console.log('All stints use:', strategyMode === 'fuel-saving' ? 'Fuel-Saving' : 'Standard', 'mode');
+  
   if (shouldTryCandidateB) {
-    console.log('=== Generating Candidate B (Mixed Strategy) ===');
-    console.log('Candidate A last stint:', candidateALastStintLaps, 'laps (too short)');
+    console.log('\n=== GENERATING CANDIDATE B (Mixed Strategy) ===');
+    console.log('Candidate A last stint:', candidateALastStintLaps, 'laps (too short, trying to optimize)');
     
-    // Candidate B: Try extending last stint by 1 lap using extra-fuel-saving
-    const candidateBLastStintLaps = candidateALastStintLaps + 1;
+    // Candidate B: Reduce stint count by 1 and redistribute, using extra-fuel-saving for last stint
+    const candidateBStintCount = stintCount - 1;
     
-    // Check if last stint would exceed max with extra-fuel-saving
-    const extraFuelSavingMaxLaps = Math.floor(tankCapacity / extraFuelSavingFuelPerLap);
-    
-    if (candidateBLastStintLaps <= extraFuelSavingMaxLaps) {
-      // Calculate fuel needed for last stint
-      const lastStintFuelNeeded = candidateBLastStintLaps * extraFuelSavingFuelPerLap + reserveLiters;
-      const requiredFuelPerLap = (tankCapacity - reserveLiters - (stintCount === 1 ? formationLapFuel : 0)) / candidateBLastStintLaps;
+    if (candidateBStintCount > 0) {
+      // Redistribute laps across fewer stints
+      const candidateBBaseLaps = Math.floor(totalLaps / candidateBStintCount);
+      const candidateBExtraLaps = totalLaps % candidateBStintCount;
+      const candidateBLastStintLaps = candidateBBaseLaps; // Last stint doesn't get extra laps
       
-      // Validate fuel feasibility
-      const minAllowedFuelPerLap = standardFuelPerLap * 0.90;
-      const isFuelFeasible = 
-        requiredFuelPerLap >= extraFuelSavingFuelPerLap && 
-        requiredFuelPerLap >= minAllowedFuelPerLap &&
-        lastStintFuelNeeded <= tankCapacity;
+      // Build distribution preview for Candidate B
+      const candidateBDistributionPreview = [];
+      for (let i = 0; i < candidateBStintCount - 1; i++) {
+        const laps = candidateBBaseLaps + (i < candidateBExtraLaps ? 1 : 0);
+        candidateBDistributionPreview.push(laps);
+      }
+      candidateBDistributionPreview.push(candidateBLastStintLaps);
       
-      if (isFuelFeasible) {
-        // Simulate Candidate B
-        // For early stints, use current strategy's lap time
-        // For last stint, use extra-fuel-saving lap time (slower)
-        const extraFuelSavingLapSeconds = parseLapTime(extraFuelSavingLapTime);
+      console.log('Candidate B: Trying', candidateBStintCount, 'stints (', candidateBStintCount - 1, 'stops)');
+      console.log('  Base laps:', candidateBBaseLaps, ', Extra:', candidateBExtraLaps);
+      console.log('  Distribution preview:', candidateBDistributionPreview.join(' + '), '=', totalLaps, 'laps');
+      console.log('  Last stint would be:', candidateBLastStintLaps, 'laps (using Extra Fuel-Saving)');
+      
+      // Check if last stint would exceed max with extra-fuel-saving
+      const extraFuelSavingMaxLaps = Math.floor(tankCapacity / extraFuelSavingFuelPerLap);
+      
+      if (candidateBLastStintLaps <= extraFuelSavingMaxLaps) {
+        // Calculate fuel needed for last stint with extra-fuel-saving
+        const lastStintFuelNeeded = candidateBLastStintLaps * extraFuelSavingFuelPerLap + reserveLiters;
+        const requiredFuelPerLap = (tankCapacity - reserveLiters - (candidateBStintCount === 1 ? formationLapFuel : 0)) / candidateBLastStintLaps;
         
-        // Calculate new total laps (one more than Candidate A)
-        const candidateBTotalLaps = totalLaps + 1;
+        // Validate fuel feasibility
+        const minAllowedFuelPerLap = standardFuelPerLap * 0.90;
+        const isFuelFeasible = 
+          requiredFuelPerLap >= extraFuelSavingFuelPerLap && 
+          requiredFuelPerLap >= minAllowedFuelPerLap &&
+          lastStintFuelNeeded <= tankCapacity;
         
-        // Recalculate distribution with one more lap
-        const candidateBBaseLaps = Math.floor(candidateBTotalLaps / stintCount);
-        const candidateBExtraLaps = candidateBTotalLaps % stintCount;
+        console.log('\nFuel feasibility check:');
+        console.log('  Required fuel per lap:', requiredFuelPerLap.toFixed(2), 'L/lap');
+        console.log('  Extra-fuel-saving available:', extraFuelSavingFuelPerLap.toFixed(2), 'L/lap');
+        console.log('  Minimum allowed:', minAllowedFuelPerLap.toFixed(2), 'L/lap');
+        console.log('  Max laps with extra-fuel-saving:', extraFuelSavingMaxLaps);
+        console.log('  Fuel needed for last stint:', lastStintFuelNeeded.toFixed(2), 'L');
         
-        // Simulate Candidate B with mixed lap times
-        // Early stints use current strategy's lap time, last stint uses extra-fuel-saving
-        // Approximate: Candidate B has same early stints as A, but extends last stint by 1 lap
-        // Time difference: one extra lap at extra-fuel-saving pace (slower)
-        const timeDifference = extraFuelSavingLapSeconds - lapSeconds;
-        
-        // Candidate B will complete at least as many laps as A (has one more total lap)
-        // But the slower last stint lap time may reduce fractional laps
-        // Heuristic: if time difference is small relative to race duration, Candidate B wins
-        // More accurate: Candidate B completes candidateBTotalLaps if time allows
-        const candidateBFractionalLaps = candidateA.fractionalLapsAtZero + 1; // One more lap
-        // Adjust for slower last stint: subtract time difference impact
-        const timeImpact = timeDifference / raceDurationSeconds; // Fraction of race lost
-        const adjustedFractionalLaps = candidateBFractionalLaps - timeImpact;
-        
-        console.log('Candidate B analysis:');
-        console.log('  Total laps:', candidateBTotalLaps);
-        console.log('  Time difference per lap:', timeDifference.toFixed(2), 'seconds');
-        console.log('  Adjusted fractional laps:', adjustedFractionalLaps.toFixed(3));
-        console.log('Candidate A fractional laps:', candidateA.fractionalLapsAtZero.toFixed(3));
-        
-        // Compare: pick winner based on adjusted fractional laps
-        if (adjustedFractionalLaps > candidateA.fractionalLapsAtZero) {
-          // Candidate B wins - use it
-          finalDistribution = {
-            stintCount,
-            baseLapsPerStint: candidateBBaseLaps,
-            extraLaps: candidateBExtraLaps,
-            fractionalLaps: adjustedFractionalLaps,
-            fullLaps: candidateBTotalLaps, // Integer laps
-          };
-          useExtraFuelSavingForLastStint = true;
-          fractionalLapsAtZero = adjustedFractionalLaps;
-          fullLapsForPlanning = candidateBTotalLaps;
-          totalLaps = candidateBTotalLaps;
+        if (isFuelFeasible) {
+          // Check if early stints can fit with current strategy's max
+          const earlyStintsLaps = [];
+          for (let i = 0; i < candidateBStintCount - 1; i++) {
+            const laps = candidateBBaseLaps + (i < candidateBExtraLaps ? 1 : 0);
+            earlyStintsLaps.push(laps);
+          }
+          const maxEarlyStintLaps = Math.max(...earlyStintsLaps);
           
-          console.log('✅ Candidate B selected (Mixed Strategy)');
-          console.log('Last stint will use Extra Fuel-Saving mode');
+          console.log('\nEarly stints check:');
+          console.log('  Early stint laps:', earlyStintsLaps.join(', '));
+          console.log('  Max early stint:', maxEarlyStintLaps, 'laps');
+          console.log('  Strategy max laps per stint:', effectiveMaxLapsPerStint);
+          
+          if (maxEarlyStintLaps <= effectiveMaxLapsPerStint) {
+            // Simulate Candidate B with mixed lap times
+            const extraFuelSavingLapSeconds = parseLapTime(extraFuelSavingLapTime);
+            
+            // Calculate time for Candidate B
+            // Early stints use current strategy's lap time
+            // Last stint uses extra-fuel-saving lap time (slower)
+            let candidateBTime = 0;
+            let candidateBLaps = 0;
+            
+            // Simulate early stints (use current strategy's lap time)
+            for (let i = 0; i < candidateBStintCount - 1; i++) {
+              const laps = candidateBBaseLaps + (i < candidateBExtraLaps ? 1 : 0);
+              candidateBTime += laps * lapSeconds;
+              candidateBLaps += laps;
+              
+              // Add pit stop (except after last stint)
+              if (i < candidateBStintCount - 2) {
+                candidateBTime += estimatedPerStopLoss;
+              }
+            }
+            
+            // Last stint uses extra-fuel-saving lap time
+            candidateBTime += candidateBLastStintLaps * extraFuelSavingLapSeconds;
+            candidateBLaps += candidateBLastStintLaps;
+            
+            // Add final pit stop time (if any)
+            // Actually, no pit stop after last stint
+            
+            // Calculate fractional laps for Candidate B
+            // Compare total time vs race duration
+            let candidateBFractionalLaps = 0;
+            if (candidateBTime <= raceDurationSeconds) {
+              // Completed all laps within time
+              candidateBFractionalLaps = candidateBLaps;
+            } else {
+              // Timer hit zero during last stint
+              const timeIntoLastStint = raceDurationSeconds - (candidateBTime - candidateBLastStintLaps * extraFuelSavingLapSeconds);
+              const fractionOfLastStint = timeIntoLastStint / extraFuelSavingLapSeconds;
+              candidateBFractionalLaps = candidateBLaps - candidateBLastStintLaps + fractionOfLastStint;
+            }
+            
+            // Apply white flag rule
+            const candidateBFullLaps = candidateBLaps; // Can complete all laps
+            
+            console.log('\n=== CANDIDATE B SIMULATION ===');
+            console.log('Early stints time:', (candidateBTime - candidateBLastStintLaps * extraFuelSavingLapSeconds).toFixed(1), 's');
+            console.log('Last stint time:', (candidateBLastStintLaps * extraFuelSavingLapSeconds).toFixed(1), 's');
+            console.log('Total time:', candidateBTime.toFixed(1), 's');
+            console.log('Race duration:', raceDurationSeconds, 's');
+            console.log('Fractional laps:', candidateBFractionalLaps.toFixed(3));
+            console.log('Full laps:', candidateBFullLaps);
+            
+            console.log('\n=== CANDIDATE COMPARISON ===');
+            console.log('Candidate A:');
+            console.log('  Distribution:', candidateADistributionPreview.join(' + '), '=', totalLaps, 'laps');
+            console.log('  Stints:', stintCount, '(', pitStops, 'stops)');
+            console.log('  Fractional laps:', candidateA.fractionalLapsAtZero.toFixed(3));
+            console.log('  Mode: All', strategyMode === 'fuel-saving' ? 'Fuel-Saving' : 'Standard');
+            
+            console.log('Candidate B:');
+            console.log('  Distribution:', candidateBDistributionPreview.join(' + '), '=', totalLaps, 'laps');
+            console.log('  Stints:', candidateBStintCount, '(', candidateBStintCount - 1, 'stops)');
+            console.log('  Fractional laps:', candidateBFractionalLaps.toFixed(3));
+            console.log('  Mode: Early stints =', strategyMode === 'fuel-saving' ? 'Fuel-Saving' : 'Standard', ', Last = Extra Fuel-Saving ⚡');
+            
+            // Compare: pick winner based on fractional laps
+            if (candidateBFractionalLaps > candidateA.fractionalLapsAtZero) {
+              // Candidate B wins - use it
+              finalDistribution = {
+                stintCount: candidateBStintCount,
+                baseLapsPerStint: candidateBBaseLaps,
+                extraLaps: candidateBExtraLaps,
+                fractionalLaps: candidateBFractionalLaps,
+                fullLaps: totalLaps, // Same total laps, just redistributed
+              };
+              useExtraFuelSavingForLastStint = true;
+              fractionalLapsAtZero = candidateBFractionalLaps;
+              fullLapsForPlanning = totalLaps; // Keep same total
+              
+              console.log('\n✅ WINNER: Candidate B (Mixed Strategy)');
+              console.log('Reason: Completes more fractional laps (', candidateBFractionalLaps.toFixed(3), '>', candidateA.fractionalLapsAtZero.toFixed(3), ')');
+              console.log('Benefit: Fewer pit stops (', candidateBStintCount - 1, 'vs', pitStops, ')');
+            } else if (candidateBFractionalLaps === candidateA.fractionalLapsAtZero) {
+              console.log('\n✅ WINNER: Candidate A (Pure Strategy)');
+              console.log('Reason: Same fractional laps, prefer simpler strategy');
+            } else {
+              console.log('\n✅ WINNER: Candidate A (Pure Strategy)');
+              console.log('Reason: Candidate B completes fewer laps (', candidateBFractionalLaps.toFixed(3), '<', candidateA.fractionalLapsAtZero.toFixed(3), ')');
+              console.log('Reason: Slower last stint negates benefit of fewer pit stops');
+            }
+          } else {
+            console.log('\n❌ Candidate B rejected: Early stints would exceed max');
+            console.log('Max early stint:', maxEarlyStintLaps, '>', effectiveMaxLapsPerStint);
+            console.log('✅ Using Candidate A (Pure Strategy)');
+          }
         } else {
-          console.log('✅ Candidate A selected (Pure Strategy)');
-          console.log('Slower last stint negates benefit of extra lap');
+          console.log('\n❌ Candidate B rejected: Fuel not feasible');
+          console.log('Required:', requiredFuelPerLap.toFixed(2), 'L/lap');
+          console.log('Available:', extraFuelSavingFuelPerLap.toFixed(2), 'L/lap');
+          console.log('Minimum:', minAllowedFuelPerLap.toFixed(2), 'L/lap');
+          console.log('✅ Using Candidate A (Pure Strategy)');
         }
       } else {
-        console.log('❌ Candidate B rejected: Fuel not feasible');
-        console.log('Required:', requiredFuelPerLap.toFixed(2), 'L/lap');
-        console.log('Available:', extraFuelSavingFuelPerLap.toFixed(2), 'L/lap');
-        console.log('Minimum:', minAllowedFuelPerLap.toFixed(2), 'L/lap');
+        console.log('\n❌ Candidate B rejected: Last stint would exceed max laps');
+        console.log('Required:', candidateBLastStintLaps, 'laps');
+        console.log('Max with extra-fuel-saving:', extraFuelSavingMaxLaps, 'laps');
+        console.log('✅ Using Candidate A (Pure Strategy)');
       }
     } else {
-      console.log('❌ Candidate B rejected: Last stint would exceed max laps');
-      console.log('Required:', candidateBLastStintLaps, 'laps');
-      console.log('Max with extra-fuel-saving:', extraFuelSavingMaxLaps, 'laps');
+      console.log('\n❌ Candidate B rejected: Cannot reduce to 0 stints');
+      console.log('✅ Using Candidate A (Pure Strategy)');
     }
   } else {
-    console.log('Using Candidate A (Pure Strategy)');
+    console.log('\n=== CANDIDATE B SKIPPED ===');
+    if (candidateALastStintLaps >= 5) {
+      console.log('Reason: Last stint is acceptable (', candidateALastStintLaps, 'laps >= 5)');
+    } else if (!extraFuelSavingLapTime || !extraFuelSavingFuelPerLap) {
+      console.log('Reason: Extra-fuel-saving inputs not provided');
+      console.log('  extraFuelSavingLapTime:', extraFuelSavingLapTime || 'missing');
+      console.log('  extraFuelSavingFuelPerLap:', extraFuelSavingFuelPerLap || 'missing');
+    } else {
+      console.log('Reason: Other condition not met');
+    }
+    console.log('✅ Using Candidate A (Pure Strategy)');
   }
   
   // Update distribution with final choice
