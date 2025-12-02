@@ -2,27 +2,19 @@
 
 const parseNumber = (value) => (value === '' ? '' : Number(value));
 
-const parseLapTime = (value) => {
-  if (!value) return null;
-  const clean = value.trim();
-  if (!clean) return null;
-  const parts = clean.split(':');
-  let multiplier = 1;
-  let seconds = 0;
-
-  while (parts.length) {
-    const part = parts.pop();
-    const num = Number(part);
-    if (Number.isNaN(num)) return null;
-    seconds += num * multiplier;
-    multiplier *= 60;
+const parseLapTime = (timeStr) => {
+  if (!timeStr) return 0;
+  const parts = timeStr.split(':');
+  if (parts.length === 2) {
+    return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
   }
-
-  return seconds;
+  return parseFloat(timeStr);
 };
 
-const safeNumber = (value) =>
-  value === '' || Number.isNaN(Number(value)) ? null : Number(value);
+const safeNumber = (value) => {
+  const num = parseFloat(value);
+  return isNaN(num) ? 0 : num;
+};
 
 const parseTimeOnly = (timeStr) => {
   if (!timeStr) return null;
