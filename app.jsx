@@ -513,14 +513,49 @@ const computePlan = (form, strategyMode = 'standard') => {
   }
   
   stintCount = Math.max(1, stintCount);
-  const pitStops = Math.max(0, stintCount - 1);
+  let pitStops = Math.max(0, stintCount - 1);
   
   console.log('Final stint count:', stintCount);
   console.log('Pit stops:', pitStops);
 
   // ========== STEP 6: Distribute Laps Evenly Across Stints ==========
-  const baseLapsPerStint = Math.floor(totalLaps / stintCount);
-  const extraLaps = totalLaps % stintCount;
+  let baseLapsPerStint = Math.floor(totalLaps / stintCount);
+  let extraLaps = totalLaps % stintCount;
+  
+  // ========== SMART STINT DISTRIBUTION: Avoid very short final stints ==========
+  // Check if last stint would be too short (less than minimum threshold)
+  const minLapsThreshold = minLapsPerStint && minLapsPerStint > 0 
+    ? minLapsPerStint 
+    : 5; // Default to 5 if not specified
+  
+  // Calculate what the last stint would be with current distribution
+  // Note: Extra laps go to FIRST stints, so last stint is just baseLapsPerStint
+  let lastStintLaps = baseLapsPerStint;
+  
+  // If last stint is too short, try reducing stint count and redistributing
+  if (lastStintLaps < minLapsThreshold && lastStintLaps > 0 && stintCount > 1) {
+    const originalStintCount = stintCount;
+    let adjustedStintCount = stintCount - 1;
+    let adjustedBaseLaps = Math.floor(totalLaps / adjustedStintCount);
+    let adjustedLastStintLaps = adjustedBaseLaps;
+    
+    // Check if we can fit all laps with fewer stints
+    const testAvgLaps = totalLaps / adjustedStintCount;
+    
+    if (testAvgLaps <= effectiveMaxLapsPerStint && adjustedLastStintLaps >= minLapsThreshold) {
+      // Can fit with fewer stints and last stint is acceptable - use this
+      stintCount = adjustedStintCount;
+      pitStops = Math.max(0, stintCount - 1);
+      baseLapsPerStint = adjustedBaseLaps;
+      extraLaps = totalLaps % stintCount;
+      
+      console.log(`Adjusted stint count from ${originalStintCount} to ${stintCount} to avoid short final stint (< ${minLapsThreshold} laps)`);
+      console.log(`New distribution: base=${baseLapsPerStint}, extra=${extraLaps}, last stint=${baseLapsPerStint} laps`);
+    } else {
+      // Can't reduce stints (would exceed max or still too short) - keep current
+      console.log(`Cannot reduce stints: avg would be ${testAvgLaps.toFixed(1)} (max: ${effectiveMaxLapsPerStint}), last would be ${adjustedLastStintLaps} (min: ${minLapsThreshold})`);
+    }
+  }
 
   // ========== STEP 7: Build Stint Plan with Fuel Calculations ==========
   const stintPlan = [];
