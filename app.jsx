@@ -850,13 +850,15 @@ const computePlan = (form, strategyMode = 'standard') => {
         // If we completed all laps within time, fractional = full laps
         // Check if we actually completed all planned laps
         const totalPlannedLaps = earlyStintsLaps.reduce((sum, laps) => sum + laps, 0) + candidateLastStintLaps;
-        if (candidateLaps >= totalPlannedLaps && candidateTime <= maxRaceTimeSeconds) {
-          // Completed all planned laps within race time
-          candidateFractionalLaps = candidateLaps;
-        } else if (candidateFractionalLaps === 0 && candidateTime <= maxRaceTimeSeconds) {
-          // If fractional laps wasn't set (didn't hit timer), set to completed laps
-          // This handles edge cases where simulation completes without hitting limit
-          candidateFractionalLaps = candidateLaps;
+        if (candidateFractionalLaps === 0) {
+          // Fractional laps wasn't set (didn't hit timer mid-lap)
+          if (candidateLaps >= totalPlannedLaps && candidateTime <= maxRaceTimeSeconds) {
+            // Completed all planned laps within race time
+            candidateFractionalLaps = candidateLaps;
+          } else {
+            // Completed what we could (fallback)
+            candidateFractionalLaps = candidateLaps;
+          }
         }
       }
       
@@ -1205,7 +1207,10 @@ const StrategyTab = ({
     if (!result || result.errors?.length || !result.totalLaps) {
       return { withoutPits: 0, withPits: 0 };
     }
-    const timeOnTrack = result.totalRaceTimeWithStops - result.totalPitTime;
+    // Calculate time on track by summing all stint durations (pure driving time, excluding pit stops)
+    const timeOnTrack = result.stintPlan && result.stintPlan.length > 0
+      ? result.stintPlan.reduce((sum, stint) => sum + (stint.stintDuration || 0), 0)
+      : result.totalRaceTimeWithStops - result.totalPitTime; // Fallback if stintPlan not available
     const avgLapWithoutPits = result.totalLaps > 0 && timeOnTrack > 0
       ? timeOnTrack / result.totalLaps
       : 0;
@@ -1303,7 +1308,18 @@ const StrategyTab = ({
                       <Stat
                         label="Stints & Stops"
                         value={`${strategy.result.stintCount} stints`}
-                        detail={`${strategy.result.pitStops} stops • ~${strategy.result.lapsPerStint} laps/stint`}
+                        detail={
+                          strategy.result.stintPlan && strategy.result.stintPlan.length > 0
+                            ? (() => {
+                                const minLaps = Math.min(...strategy.result.stintPlan.map(s => s.laps));
+                                const maxLaps = Math.max(...strategy.result.stintPlan.map(s => s.laps));
+                                const lapsDisplay = minLaps === maxLaps
+                                  ? `~${minLaps} laps/stint`
+                                  : `${minLaps}-${maxLaps} laps/stint`;
+                                return `${strategy.result.pitStops} stops • ${lapsDisplay}`;
+                              })()
+                            : `${strategy.result.pitStops} stops • ~${strategy.result.lapsPerStint} laps/stint`
+                        }
                         helpText={
                           strategy.result.stintPlan && strategy.result.stintPlan.length > 0
                             ? strategy.result.stintPlan.map((s) => {
