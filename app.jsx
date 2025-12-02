@@ -387,15 +387,36 @@ const computePlan = (form, strategyMode = 'standard') => {
       // Check if timer hits zero during pit stop
       if (timeAfterPitStop > raceDurationSeconds) {
         // Timer hits zero during pit stop
-        // We completed the lap, but timer hit during pit stop
-        // Since we finished the lap before timer hit zero, fractional = completed laps (integer)
-        fractionalLapsAtZero = simulatedLaps;
+        // But with white flag rule, we can still complete the lap we just finished + 1 more
+        // Calculate how much time remains after completing the lap (before pit stop)
+        const timeRemainingAfterLap = maxRaceTimeSeconds - simulatedTime;
+        
+        if (timeRemainingAfterLap > estimatedPerStopLoss) {
+          // We have time after pit stop to complete part of next lap
+          const timeRemainingAfterPit = maxRaceTimeSeconds - timeAfterPitStop;
+          
+          if (timeRemainingAfterPit > 0) {
+            // Calculate fractional laps: completed laps + fraction of next lap possible
+            const fractionOfNextLap = timeRemainingAfterPit / lapSeconds;
+            fractionalLapsAtZero = simulatedLaps + Math.min(fractionOfNextLap, 1);
+          } else {
+            // No time after pit stop
+            fractionalLapsAtZero = simulatedLaps;
+          }
+        } else {
+          // Not enough time even for pit stop with white flag
+          fractionalLapsAtZero = simulatedLaps;
+        }
         
         // White flag rule: can complete current lap (just finished) + 1 more
         fullLapsForPlanning = simulatedLaps + 1;
         
         console.log('Timer hit zero during pit stop after lap', simulatedLaps);
         console.log('Time after pit would be:', timeAfterPitStop.toFixed(1), 'seconds (exceeds', raceDurationSeconds, 's)');
+        console.log('Time remaining with white flag:', timeRemainingAfterLap.toFixed(1), 'seconds');
+        if (timeRemainingAfterLap > estimatedPerStopLoss) {
+          console.log('Time remaining after pit:', (maxRaceTimeSeconds - timeAfterPitStop).toFixed(1), 'seconds');
+        }
         console.log('Fractional laps at zero:', fractionalLapsAtZero.toFixed(3));
         console.log('Full laps for planning (white flag):', fullLapsForPlanning);
         break;
