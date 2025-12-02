@@ -97,19 +97,18 @@ const simulateRace = ({
 
   const pitStops = stints.length - 1;
   let totalPitTime = 0;
-  const pitStopTimes = []; // Store individual pit stop times
   
   for (let i = 0; i < pitStops; i++) {
     const isLastPitStop = i === pitStops - 1;
     let fuelToAdd;
     
     if (isLastPitStop) {
-      // Last pit: only add enough fuel for final stint + reserve
+      // Last pit: only add enough fuel for final stint + reserve (splash)
       const finalStint = stints[i + 1];
       const fuelNeededForFinalStint = (finalStint.laps * fuelPerLap) + reserveFuel;
       fuelToAdd = Math.max(0, fuelNeededForFinalStint - stints[i].fuelRemaining);
-      // Update the stint's starting fuel to reflect the splash
       stints[i + 1].splashFuel = fuelToAdd;
+      stints[i + 1].isSplash = true;
     } else {
       // Full tank for non-final pit stops
       fuelToAdd = tankCapacity - stints[i].fuelRemaining;
@@ -117,10 +116,9 @@ const simulateRace = ({
     
     const fuelingTime = (fuelToAdd / tankCapacity) * FULL_TANK_FUELING_TIME;
     const pitStopTime = pitLaneDelta + Math.max(fuelingTime, stationaryService);
-    pitStopTimes.push(pitStopTime); // Store individual pit stop time
-    totalPitTime += pitStopTime;
-    // Store perStopLoss on the stint for easy access
+    stints[i].fuelToAdd = fuelToAdd;
     stints[i].perStopLoss = pitStopTime;
+    totalPitTime += pitStopTime;
   }
 
   return {
@@ -134,6 +132,8 @@ const simulateRace = ({
     maxLapsPerStint,
     lapTimeSeconds,
     fuelPerLap,
+    reserveFuel,
+    tankCapacity,
   };
 };
 
@@ -162,6 +162,7 @@ const calculateStandardStrategy = (config) => {
     ...stint,
     mode: 'standard',
     fuelPerLapTarget: fuelPerLap,
+    lapTime: lapTimeSeconds,
   }));
 
   return { ...result, strategyName: 'Standard', strategyMode: 'standard' };
@@ -275,11 +276,15 @@ const simulateMixedStrategy = ({
   const completeLapsAtWhiteFlag = Math.floor(fractionalLaps);
   const whiteFlagLapCount = completeLapsAtWhiteFlag + 1;
 
+  // Calculate pit times (fuel-saving strategy always fills to full tank)
   let totalPitTime = 0;
   for (let i = 0; i < stints.length - 1; i++) {
     const fuelToAdd = tankCapacity - stints[i].fuelRemaining;
     const fuelingTime = (fuelToAdd / tankCapacity) * FULL_TANK_FUELING_TIME;
-    totalPitTime += pitLaneDelta + Math.max(fuelingTime, stationaryService);
+    const pitTime = pitLaneDelta + Math.max(fuelingTime, stationaryService);
+    stints[i].fuelToAdd = fuelToAdd;
+    stints[i].perStopLoss = pitTime;
+    totalPitTime += pitTime;
   }
 
   return {
@@ -291,6 +296,8 @@ const simulateMixedStrategy = ({
     stints,
     totalPitTime,
     stintModes: stintModes.slice(0, stints.length),
+    tankCapacity,
+    reserveFuel,
   };
 };
 
@@ -433,15 +440,14 @@ const computePlan = (form, strategyMode = 'standard') => {
     return { errors: [result.error] };
   }
 
+  const tankCapacity = safeNumber(form.tankCapacity) || 106;
+  const reserveLiters = safeNumber(form.fuelReserveLiters) || 0;
+  const formationLapFuel = safeNumber(form.formationLapFuel) || 0;
+
   // Transform stints to stintPlan format expected by components
   const stintPlan = result.stints.map((stint, idx) => {
     const isFirstStint = idx === 0;
     const isLastStint = idx === result.stints.length - 1;
-    const tankCapacity = safeNumber(form.tankCapacity) || 106;
-    const reserveLiters = safeNumber(form.fuelReserveLiters) || 0;
-    const formationLapFuel = safeNumber(form.formationLapFuel) || 0;
-    const pitLaneDelta = safeNumber(form.pitLaneDeltaSeconds) || 27;
-    const stationaryService = safeNumber(form.stationaryServiceSeconds) || 0;
 
     // Calculate fuel at start
     const fuelAtStart = isFirstStint
@@ -452,83 +458,41 @@ const computePlan = (form, strategyMode = 'standard') => {
     const usableFuel = fuelAtStart - reserveLiters;
     const fuelTarget = stint.laps > 0 ? usableFuel / stint.laps : 0;
 
-    // Use perStopLoss directly from stint if available (calculated in simulateRace)
-    // Otherwise calculate it (for fuel-saving strategy which uses simulateMixedStrategy)
-    let perStopLoss = stint.perStopLoss || 0;
-    let fuelToAdd = 0;
-    
-    if (!isLastStint && !perStopLoss) {
-      // Only calculate if not already set by simulateRace
-      // Check if this is the last pit stop (before final stint)
-      const isLastPitStop = idx === result.stints.length - 2;
-      
-      if (isLastPitStop) {
-        // Last pit: only add enough fuel for final stint + reserve (splash-and-dash)
-        const finalStint = result.stints[idx + 1];
-        const fuelPerLap = result.fuelPerLap || safeNumber(form.fuelPerLap);
-        const reserveFuel = reserveLiters;
-        const fuelNeededForFinalStint = (finalStint.laps * fuelPerLap) + reserveFuel;
-        fuelToAdd = Math.max(0, fuelNeededForFinalStint - stint.fuelRemaining);
-      } else {
-        // Full tank for non-final pit stops
-        fuelToAdd = tankCapacity - stint.fuelRemaining;
-      }
-      const fuelingTime = (fuelToAdd / tankCapacity) * FULL_TANK_FUELING_TIME;
-      perStopLoss = pitLaneDelta + Math.max(fuelingTime, stationaryService);
-    }
-    
-    if (!isLastStint) {
-      fuelToAdd = fuelToAdd || (tankCapacity - stint.fuelRemaining);
-    }
-
-    // Calculate stint duration (from duration field, or estimate from laps)
-    const lapTimeSeconds = stint.lapTime || parseLapTime(
-      strategyMode === 'fuel-saving' 
-        ? (form.fuelSavingLapTime || form.averageLapTime)
-        : form.averageLapTime
-    );
-    const stintDuration = stint.duration || (stint.laps * lapTimeSeconds);
-
     return {
       id: stint.id,
       laps: stint.laps,
       startLap: stint.startLap,
       endLap: stint.endLap,
-      stintDuration: stintDuration,
+      stintDuration: stint.duration,
       fuel: stint.fuelUsed,
       fuelLeft: stint.fuelRemaining,
       fuelTarget: fuelTarget,
-      fuelToAdd: fuelToAdd,
-      stintMode: stint.mode || (strategyMode === 'fuel-saving' ? 'fuel-saving' : 'standard'),
-      strategyFuelPerLap: stint.fuelPerLapTarget || safeNumber(form.fuelPerLap),
-      perStopLoss: perStopLoss,
+      fuelToAdd: stint.fuelToAdd || 0,
+      stintMode: stint.mode,
+      strategyFuelPerLap: stint.fuelPerLapTarget,
+      perStopLoss: stint.perStopLoss || 0,
+      lapTime: stint.lapTime,
+      isSplash: stint.isSplash || false,
+      splashFuel: stint.splashFuel || 0,
     };
   });
 
   // Calculate total race time with stops
   const totalRaceTimeWithStops = stintPlan.reduce((sum, stint) => sum + stint.stintDuration, 0) + result.totalPitTime;
 
-  // Calculate decimal laps (use fractionalLaps if available)
-  const decimalLaps = result.fractionalLaps || result.totalLaps;
-
   // Calculate average per stop loss
   const avgPerStopLoss = result.pitStops > 0 ? result.totalPitTime / result.pitStops : 0;
 
   return {
     errors: [],
-    lapSeconds: result.lapTimeSeconds || parseLapTime(
-      strategyMode === 'fuel-saving' 
-        ? (form.fuelSavingLapTime || form.averageLapTime)
-        : form.averageLapTime
-    ),
+    lapSeconds: result.lapTimeSeconds || parseLapTime(form.averageLapTime),
     totalLaps: result.totalLaps,
-    decimalLaps: decimalLaps,
+    decimalLaps: result.fractionalLaps,
     raceDurationSeconds: (form.raceDurationMinutes || 0) * 60,
     maxRaceTimeSeconds: (form.raceDurationMinutes || 0) * 60 + (result.lapTimeSeconds || parseLapTime(form.averageLapTime)),
-    totalFuelNeeded: result.totalLaps * (result.fuelPerLap || safeNumber(form.fuelPerLap)),
-    totalFuelWithReserve: result.totalLaps * (result.fuelPerLap || safeNumber(form.fuelPerLap)) + 
-      (safeNumber(form.fuelReserveLiters) || 0) * result.stintCount,
-    lapsPerStint: result.maxLapsPerStint || Math.floor((safeNumber(form.tankCapacity) || 106) / (result.fuelPerLap || safeNumber(form.fuelPerLap))),
+    totalFuelNeeded: result.totalLaps * result.fuelPerLap,
+    totalFuelWithReserve: result.totalLaps * result.fuelPerLap + reserveLiters * result.stintCount,
+    lapsPerStint: result.maxLapsPerStint,
     stintCount: result.stintCount,
     pitStops: result.pitStops,
     stintPlan: stintPlan,
@@ -537,10 +501,10 @@ const computePlan = (form, strategyMode = 'standard') => {
     perStopLoss: avgPerStopLoss,
     pitLaneDelta: safeNumber(form.pitLaneDeltaSeconds) || 27,
     stationaryService: safeNumber(form.stationaryServiceSeconds) || 0,
-    fuelPerLap: result.fuelPerLap || safeNumber(form.fuelPerLap),
+    fuelPerLap: result.fuelPerLap,
     strategyMode: strategyMode,
     candidateName: result.candidateName,
-    usesExtraFuelSaving: result.stintModes?.some(m => m === 'efs') || false,
+    stintModes: result.stintModes,
+    allCandidates: result.allCandidates,
   };
 };
-
