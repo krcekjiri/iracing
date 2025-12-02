@@ -646,11 +646,12 @@ const computePlan = (form, strategyMode = 'standard') => {
       
       // Check mathematical feasibility: Can we fit all laps with fewer stints?
       const candidateBAvgLaps = totalLaps / candidateBStintCount;
-      const extraFuelSavingMaxLaps = Math.floor(tankCapacity / extraFuelSavingFuelPerLap);
+      // Calculate max laps accounting for fuel reserve
+      const extraFuelSavingMaxLaps = Math.floor((tankCapacity - reserveLiters) / extraFuelSavingFuelPerLap);
       
       console.log('\nMathematical feasibility check:');
       console.log('  Average laps per stint:', candidateBAvgLaps.toFixed(2));
-      console.log('  Max laps with extra-fuel-saving:', extraFuelSavingMaxLaps);
+      console.log('  Max laps with extra-fuel-saving (accounting for reserve):', extraFuelSavingMaxLaps);
       console.log('  Strategy max laps per stint:', effectiveMaxLapsPerStint);
       
       // Check if early stints fit within strategy max
@@ -663,11 +664,12 @@ const computePlan = (form, strategyMode = 'standard') => {
       const earlyStintsFit = maxEarlyStintLaps <= effectiveMaxLapsPerStint;
       
       // Check if last stint fits with extra-fuel-saving
-      const lastStintFits = candidateBLastStintLaps <= extraFuelSavingMaxLaps;
+      // Use fuel-based check: can we fit the fuel needed (including reserve)?
+      const lastStintFuelNeeded = candidateBLastStintLaps * extraFuelSavingFuelPerLap + reserveLiters;
+      const lastStintFits = lastStintFuelNeeded <= tankCapacity;
       
       if (earlyStintsFit && lastStintFits) {
-        // Calculate fuel needed for last stint with extra-fuel-saving
-        const lastStintFuelNeeded = candidateBLastStintLaps * extraFuelSavingFuelPerLap + reserveLiters;
+        // lastStintFuelNeeded already calculated above for the feasibility check
         const requiredFuelPerLap = (tankCapacity - reserveLiters - (candidateBStintCount === 1 ? formationLapFuel : 0)) / candidateBLastStintLaps;
         
         // Validate fuel feasibility
@@ -940,9 +942,11 @@ const computePlan = (form, strategyMode = 'standard') => {
           console.log('✅ Using Candidate A (Pure Strategy)');
         }
       } else {
-        console.log('\n❌ Candidate B rejected: Last stint would exceed max laps');
-        console.log('Required:', candidateBLastStintLaps, 'laps');
-        console.log('Max with extra-fuel-saving:', extraFuelSavingMaxLaps, 'laps');
+        console.log('\n❌ Candidate B rejected: Last stint fuel requirement exceeds tank capacity');
+        console.log('Required laps:', candidateBLastStintLaps, 'laps');
+        console.log('Fuel needed:', lastStintFuelNeeded.toFixed(2), 'L (', candidateBLastStintLaps, '×', extraFuelSavingFuelPerLap.toFixed(2), '+', reserveLiters, 'reserve)');
+        console.log('Tank capacity:', tankCapacity, 'L');
+        console.log('Max laps with extra-fuel-saving (accounting for reserve):', extraFuelSavingMaxLaps, 'laps');
         console.log('✅ Using Candidate A (Pure Strategy)');
       }
     } else {
