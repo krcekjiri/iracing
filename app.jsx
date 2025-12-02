@@ -155,6 +155,103 @@ const getCommonTimezones = () => [
   { value: 'Australia/Sydney', label: 'AEDT/AEST (Sydney)' },
 ];
 
+// ==================== VALIDATION HELPER FUNCTIONS ====================
+
+// Validation helper: Calculate fuel target and validate
+const validateFuelTarget = (availableFuel, laps, reserveFuel, formationLapFuel, isFirstStint, strategyFuelPerLap) => {
+  const usableFuel = availableFuel - reserveFuel - (isFirstStint ? formationLapFuel : 0);
+  const targetPerLap = laps > 0 ? usableFuel / laps : 0;
+  const minAllowed = strategyFuelPerLap * 0.90;
+  
+  const validation = {
+    targetPerLap,
+    minAllowed,
+    usableFuel,
+    isValid: targetPerLap >= minAllowed,
+    isAggressive: targetPerLap >= minAllowed && targetPerLap < (strategyFuelPerLap * 0.95),
+    shortfallPerLap: Math.max(0, minAllowed - targetPerLap),
+    totalShortfall: Math.max(0, (minAllowed - targetPerLap) * laps),
+  };
+  
+  return validation;
+};
+
+// Validation helper: Check if fuel is sufficient for stint
+const validateFuelSufficiency = (availableFuel, requiredFuel, laps, fuelPerLap, reserveFuel) => {
+  const required = (laps * fuelPerLap) + reserveFuel;
+  const shortfall = Math.max(0, required - availableFuel);
+  const maxLapsPossible = availableFuel > reserveFuel 
+    ? Math.floor((availableFuel - reserveFuel) / fuelPerLap)
+    : 0;
+  
+  return {
+    required,
+    available: availableFuel,
+    shortfall,
+    isSufficient: availableFuel >= required,
+    maxLapsPossible,
+  };
+};
+
+// Validation helper: Generate error/warning messages
+const generateValidationMessages = (fuelValidation, sufficiencyValidation, laps) => {
+  const errors = [];
+  const warnings = [];
+  
+  // Check fuel sufficiency first (most critical)
+  if (!sufficiencyValidation.isSufficient) {
+    errors.push({
+      level: 'error',
+      type: 'insufficient_fuel',
+      message: `Insufficient fuel for ${laps} laps`,
+      details: {
+        required: sufficiencyValidation.required,
+        available: sufficiencyValidation.available,
+        shortfall: sufficiencyValidation.shortfall,
+        maxLapsPossible: sufficiencyValidation.maxLapsPossible,
+      },
+      quickFixes: [
+        { type: 'add_fuel', amount: sufficiencyValidation.shortfall, label: `Add ${roundTo(sufficiencyValidation.shortfall, 1)} L at pit stop` },
+        { type: 'reduce_laps', laps: sufficiencyValidation.maxLapsPossible, label: `Reduce to ${sufficiencyValidation.maxLapsPossible} laps` },
+      ],
+    });
+  }
+  
+  // Check fuel target validity
+  if (!fuelValidation.isValid) {
+    errors.push({
+      level: 'critical',
+      type: 'target_below_minimum',
+      message: `Target fuel consumption below 90% minimum`,
+      details: {
+        target: fuelValidation.targetPerLap,
+        minimum: fuelValidation.minAllowed,
+        shortfallPerLap: fuelValidation.shortfallPerLap,
+        totalShortfall: fuelValidation.totalShortfall,
+      },
+      quickFixes: [
+        { type: 'add_fuel', amount: fuelValidation.totalShortfall, label: `Add ${roundTo(fuelValidation.totalShortfall, 1)} L at pit stop` },
+        { type: 'reduce_laps', laps: Math.floor(fuelValidation.usableFuel / fuelValidation.minAllowed), label: `Reduce to ${Math.floor(fuelValidation.usableFuel / fuelValidation.minAllowed)} laps` },
+      ],
+    });
+  } else if (fuelValidation.isAggressive) {
+    warnings.push({
+      level: 'warning',
+      type: 'aggressive_target',
+      message: `Aggressive fuel saving required`,
+      details: {
+        target: fuelValidation.targetPerLap,
+        standard: fuelValidation.minAllowed / 0.90,
+        percentageBelow: ((fuelValidation.minAllowed / 0.90 - fuelValidation.targetPerLap) / (fuelValidation.minAllowed / 0.90)) * 100,
+      },
+    });
+  }
+  
+  return { errors, warnings };
+};
+
+// ==================== END VALIDATION HELPERS ====================
+
 const computePlan = (form, strategyMode = 'standard') => {
   // Select lap time and fuel based on strategy mode
   let lapTime, fuelPerLap;
@@ -377,28 +474,49 @@ const computePlan = (form, strategyMode = 'standard') => {
     // Calculate fuel left at end of stint
     const fuelLeft = tankCapacity - (actualStintFuel - reserveLiters);
     
-    // Calculate dynamic fueling time based on fuel needed
-    // If not last stint, calculate fuel needed for next stint
+    // Calculate fuel to add at pit stop (with splash-and-dash optimization)
+    let fuelToAdd = 0;
     let fuelingTime = 0;
     if (idx < stintCount - 1) {
-      let fuelNeeded = tankCapacity - fuelLeft;
-      
-      // For ALL strategies: optimize last pit stop (before final stint) for splash-and-dash
-      // Add only enough fuel to complete last stint with reserve left
       if (idx === stintCount - 2) {
-        // This is the last pit stop before the final stint
-        // Calculate fuel needed for last stint
+        // Last pit stop before final stint - splash-and-dash
         const lastStintLaps = totalLaps - completedLaps - lapsThisStint;
         const lastStintFuelNeeded = lastStintLaps * fuelPerLap + reserveLiters;
-        // Fuel needed = what's needed for last stint minus what we'll have left after this stint
-        fuelNeeded = Math.max(0, lastStintFuelNeeded - fuelLeft);
-        // Cap at tank capacity
-        fuelNeeded = Math.min(fuelNeeded, tankCapacity);
+        fuelToAdd = Math.max(0, lastStintFuelNeeded - fuelLeft);
+        fuelToAdd = Math.min(fuelToAdd, tankCapacity - fuelLeft);
+      } else {
+        // Regular pit stop - fill to full
+        fuelToAdd = tankCapacity - fuelLeft;
       }
-      
       // Fueling takes 41.1 seconds for full tank, so time is proportional
-      fuelingTime = (fuelNeeded / tankCapacity) * 41.1;
+      fuelingTime = (fuelToAdd / tankCapacity) * 41.1;
     }
+    
+    // Validate fuel target for this stint
+    const fuelValidation = validateFuelTarget(
+      tankCapacity, // available fuel at start
+      lapsThisStint,
+      reserveLiters,
+      formationLapFuel,
+      idx === 0,
+      fuelPerLap // Use strategy-specific fuel per lap
+    );
+    
+    // Validate fuel sufficiency
+    const sufficiencyValidation = validateFuelSufficiency(
+      tankCapacity,
+      actualStintFuel,
+      lapsThisStint,
+      fuelPerLap,
+      reserveLiters
+    );
+    
+    // Generate validation messages
+    const validation = generateValidationMessages(
+      fuelValidation,
+      sufficiencyValidation,
+      lapsThisStint
+    );
     
     const perStopLoss = idx < stintCount - 1 ? pitLaneDelta + fuelingTime : 0;
     
@@ -412,6 +530,7 @@ const computePlan = (form, strategyMode = 'standard') => {
       laps: lapsThisStint,
       fuel: actualStintFuel,
       fuelLeft: fuelLeft,
+      fuelToAdd: fuelToAdd,
       fuelingTime: fuelingTime,
       startLap: completedLaps + 1,
       endLap: completedLaps + lapsThisStint,
@@ -420,6 +539,11 @@ const computePlan = (form, strategyMode = 'standard') => {
       startTime: completedSeconds,
       endTime: completedSeconds + stintSeconds,
       perStopLoss: perStopLoss,
+      // Add validation results
+      fuelTarget: fuelValidation.targetPerLap,
+      validation: validation,
+      // Store strategy-specific fuel per lap for recalculation
+      strategyFuelPerLap: fuelPerLap,
     });
 
     completedLaps += lapsThisStint;
@@ -727,6 +851,7 @@ const StrategyTab = ({
             reservePerStint={reservePerStint}
             formationLapFuel={Number(form.formationLapFuel) || 0}
             totalLaps={activeResult.totalLaps}
+            strategyMode={selectedStrategy}
           />
           
           <StrategyGraph plan={activeResult.stintPlan} perStopLoss={activeResult.perStopLoss} />
@@ -744,58 +869,279 @@ const StrategyTab = ({
   );
 };
 
+// ==================== UI COMPONENTS FOR VALIDATION ====================
+
+// Validation Message Component
+const ValidationMessage = ({ validation, onQuickFix }) => {
+  if (!validation || (validation.errors.length === 0 && validation.warnings.length === 0)) {
+    return null;
+  }
+  
+  return (
+    <div style={{ marginTop: '8px' }}>
+      {validation.errors.map((error, idx) => (
+        <div
+          key={idx}
+          style={{
+            padding: '10px',
+            background: error.level === 'critical' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+            border: `1px solid ${error.level === 'critical' ? 'rgba(239, 68, 68, 0.5)' : 'rgba(239, 68, 68, 0.3)'}`,
+            borderRadius: '6px',
+            marginBottom: '8px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <span style={{ fontSize: '1rem' }}>
+              {error.level === 'critical' ? '🚫' : '❌'}
+            </span>
+            <strong style={{ color: 'var(--text)' }}>{error.message}</strong>
+          </div>
+          
+          {error.details && (
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              {error.type === 'insufficient_fuel' && (
+                <div>
+                  <div>Required: {roundTo(error.details.required, 1)} L</div>
+                  <div>Available: {roundTo(error.details.available, 1)} L</div>
+                  <div>Shortfall: {roundTo(error.details.shortfall, 1)} L</div>
+                  <div>Maximum laps possible: {error.details.maxLapsPossible} laps</div>
+                </div>
+              )}
+              {error.type === 'target_below_minimum' && (
+                <div>
+                  <div>Target: {roundTo(error.details.target, 2)} L/lap</div>
+                  <div>Minimum: {roundTo(error.details.minimum, 2)} L/lap (90% of standard)</div>
+                  <div>Shortfall: {roundTo(error.details.shortfallPerLap, 2)} L/lap</div>
+                  <div>Total shortfall: {roundTo(error.details.totalShortfall, 1)} L</div>
+                </div>
+              )}
+              {error.type === 'next_stint_insufficient' && (
+                <div>
+                  <div>Required: {roundTo(error.details.required, 1)} L</div>
+                  <div>Available: {roundTo(error.details.available, 1)} L</div>
+                  <div>Shortfall: {roundTo(error.details.shortfall, 1)} L</div>
+                  <div>Maximum laps possible: {error.details.maxLapsPossible} laps</div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {error.quickFixes && error.quickFixes.length > 0 && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {error.quickFixes.map((fix, fixIdx) => (
+                <button
+                  key={fixIdx}
+                  onClick={() => onQuickFix && onQuickFix(fix)}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '0.75rem',
+                    background: 'var(--accent)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {fix.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      
+      {validation.warnings.map((warning, idx) => (
+        <div
+          key={idx}
+          style={{
+            padding: '8px',
+            background: 'rgba(234, 179, 8, 0.1)',
+            border: '1px solid rgba(234, 179, 8, 0.3)',
+            borderRadius: '6px',
+            marginBottom: '4px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>⚠️</span>
+            <span style={{ fontSize: '0.85rem' }}>{warning.message}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Fuel Target Display Component
+const FuelTargetDisplay = ({ target, validation, isFirstStint, formationLapFuel, isUpdating, changes }) => {
+  const hasError = validation?.errors.some(e => e.type === 'target_below_minimum' || e.type === 'insufficient_fuel');
+  const hasWarning = validation?.warnings.some(w => w.type === 'aggressive_target');
+  const targetChanged = changes?.some(c => c.type === 'fuelTarget');
+  
+  let color = 'var(--text)';
+  let icon = null;
+  
+  if (hasError) {
+    color = '#ef4444';
+    icon = '❌';
+  } else if (hasWarning) {
+    color = '#eab308';
+    icon = '⚠️';
+  }
+  
+  return (
+    <div style={{ textAlign: 'right' }}>
+      <span className="stat-label">Fuel Target / Lap</span>
+      <div 
+        className={`stat-value ${targetChanged ? 'value-changed' : ''}`}
+        style={{ 
+          fontSize: '1.2rem', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'flex-end', 
+          gap: '4px',
+          color: color,
+        }}
+      >
+        {target.toFixed(2)} L {icon}
+        {isUpdating && (
+          <span style={{ 
+            fontSize: '0.7rem',
+            color: 'var(--accent)',
+            marginLeft: '4px',
+          }}>
+            ⚡
+          </span>
+        )}
+        <span className="help-badge" tabIndex={0}>
+          <span className="help-icon" style={{ fontSize: '0.7rem' }}>ℹ</span>
+          <span className="help-tooltip">
+            Target fuel consumption per lap. {isFirstStint && formationLapFuel > 0 ? `Formation lap fuel (${roundTo(formationLapFuel, 1)} L) is already accounted for.` : 'Based on usable fuel and number of laps.'}
+          </span>
+        </span>
+      </div>
+      {hasError && (
+        <div style={{ fontSize: '0.7rem', color: '#ef4444', marginTop: '2px' }}>
+          Below minimum
+        </div>
+      )}
+      {hasWarning && (
+        <div style={{ fontSize: '0.7rem', color: '#eab308', marginTop: '2px' }}>
+          Aggressive
+        </div>
+      )}
+      {targetChanged && (
+        <div style={{ fontSize: '0.65rem', color: 'var(--accent)', marginTop: '2px' }}>
+          Updated
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== END UI COMPONENTS ====================
+
 const DetailedStintPlanner = ({
   plan,
   form,
   reservePerStint,
   formationLapFuel,
+  totalLaps,
+  strategyMode = 'standard',
 }) => {
   const [stintPlan, setStintPlan] = useState(plan);
+  const [expandedStints, setExpandedStints] = useState(new Set());
+  const [cascadeUpdating, setCascadeUpdating] = useState(new Set());
+  const [cascadeHistory, setCascadeHistory] = useState(new Map());
   
   useEffect(() => {
     setStintPlan(plan);
   }, [plan]);
-  
+
   if (!stintPlan?.length) {
     return <div className="empty-state">Enter race details to generate a stint plan.</div>;
   }
 
-  // Recalculate stint plan when changes are made
-  const recalculateStintPlan = (updatedPlan) => {
+  // Get strategy-specific fuel consumption
+  const getStrategyFuelPerLap = () => {
+    if (strategyMode === 'fuel-saving') {
+      return safeNumber(form.fuelSavingFuelPerLap) || safeNumber(form.fuelPerLap) || 3.07;
+    }
+    return safeNumber(form.fuelPerLap) || 3.18;
+  };
+
+  const getStandardFuelPerLap = () => {
+    return safeNumber(form.fuelPerLap) || 3.18;
+  };
+
+  // Enhanced recalculation with cascade tracking
+  const recalculateStintPlan = (updatedPlan, changedStintId = null) => {
     const tankCapacity = safeNumber(form.tankCapacity) || 106;
-    const fuelPerLap = safeNumber(form.fuelPerLap) || 3.18;
+    const fuelPerLap = getStrategyFuelPerLap();
+    const standardFuelPerLap = getStandardFuelPerLap();
     const pitLaneDelta = safeNumber(form.pitLaneDeltaSeconds) || 27;
-    const lapSeconds = parseLapTime(form.averageLapTime) || 103.5;
+    const lapSeconds = parseLapTime(
+      strategyMode === 'fuel-saving' 
+        ? (form.fuelSavingLapTime || form.averageLapTime)
+        : form.averageLapTime
+    ) || 103.5;
     
-    // Calculate laps completed in non-last stints
+    // Track which stints are being recalculated
+    const updatingStints = new Set();
+    const changeHistory = new Map();
+    
+    // Find the index of the changed stint
+    let cascadeStartIndex = 0;
+    if (changedStintId !== null) {
+      const changedIndex = updatedPlan.findIndex(s => s.id === changedStintId);
+      if (changedIndex !== -1) {
+        cascadeStartIndex = changedIndex;
+      }
+    }
+    
+    // First pass: Adjust last stint to match total laps
     let completedLaps = 0;
-    const recalculated = updatedPlan.map((stint, idx) => {
+    const planWithAdjustedLast = updatedPlan.map((stint, idx) => {
       const isLastStint = idx === updatedPlan.length - 1;
-      
-      // For last stint, calculate remaining laps to match total
       if (isLastStint && totalLaps) {
         const remainingLaps = Math.max(1, totalLaps - completedLaps);
+        if (stint.laps !== remainingLaps) {
+          updatingStints.add(stint.id);
+          changeHistory.set(stint.id, {
+            type: 'laps',
+            old: stint.laps,
+            new: remainingLaps,
+          });
+        }
         return { ...stint, laps: remainingLaps };
       }
-      
       completedLaps += stint.laps;
       return stint;
     });
     
-    // Now calculate fuel and pit stop details
+    // Second pass: Calculate fuel and validate
     let fuelInTank = tankCapacity;
-    
-    return recalculated.map((stint, idx) => {
+    const recalculated = planWithAdjustedLast.map((stint, idx) => {
       const isFirstStint = idx === 0;
-      const isLastStint = idx === recalculated.length - 1;
+      const isLastStint = idx === planWithAdjustedLast.length - 1;
+      const nextStint = !isLastStint ? planWithAdjustedLast[idx + 1] : null;
       
-      // Get pit stop config or use defaults
+      // Mark this stint as updating if it's downstream from the change
+      if (idx >= cascadeStartIndex) {
+        updatingStints.add(stint.id);
+      }
+      
+      // Get pit stop config
       const pitStop = stint.pitStop || {
         tireChange: { left: false, right: false, front: false, rear: false },
         driverSwap: false,
         pitWallSide: 'right',
-        fuelToAdd: 0,
+        fuelToAdd: undefined,
       };
+      
+      // Store old values for comparison
+      const oldFuelLeft = stint.fuelLeft;
+      const oldFuelToAdd = stint.fuelToAdd;
+      const oldFuelTarget = stint.fuelTarget;
       
       // Calculate fuel needed for this stint
       const baseFuelNeeded = stint.laps * fuelPerLap + reservePerStint;
@@ -805,56 +1151,113 @@ const DetailedStintPlanner = ({
       const fuelUsed = Math.min(fuelNeeded, fuelInTank);
       const fuelLeft = fuelInTank - fuelUsed;
       
-      // Calculate fuel to add (if not last stint)
+      // Calculate fuel to add at pit stop
       let fuelToAdd = pitStop.fuelToAdd;
-      if (fuelToAdd === undefined && !isLastStint) {
-        const nextStintFuelNeeded = updatedPlan[idx + 1].laps * fuelPerLap + reservePerStint;
-        fuelToAdd = Math.max(0, nextStintFuelNeeded - fuelLeft);
-        fuelToAdd = Math.min(fuelToAdd, tankCapacity);
-      } else if (fuelToAdd === undefined) {
-        fuelToAdd = 0;
+      if (fuelToAdd === undefined) {
+        if (isLastStint) {
+          fuelToAdd = 0;
+        } else if (idx === planWithAdjustedLast.length - 2) {
+          // Second-to-last stint - splash-and-dash for final stint
+          const finalStintFuelNeeded = nextStint.laps * fuelPerLap + reservePerStint;
+          fuelToAdd = Math.max(0, finalStintFuelNeeded - fuelLeft);
+          fuelToAdd = Math.min(fuelToAdd, tankCapacity - fuelLeft);
+        } else {
+          // Regular pit stop - fill to full
+          fuelToAdd = tankCapacity - fuelLeft;
+        }
+      }
+      
+      // Cap fuel to add at maximum possible
+      fuelToAdd = Math.min(fuelToAdd, tankCapacity - fuelLeft);
+      
+      // Calculate fuel available for next stint
+      const fuelAtStartOfNext = fuelLeft + fuelToAdd;
+      
+      // Validate this stint
+      const fuelValidation = validateFuelTarget(
+        fuelInTank,
+        stint.laps,
+        reservePerStint,
+        formationLapFuel,
+        isFirstStint,
+        standardFuelPerLap
+      );
+      
+      // Validate sufficiency for this stint
+      const sufficiencyValidation = validateFuelSufficiency(
+        fuelInTank,
+        fuelUsed,
+        stint.laps,
+        fuelPerLap,
+        reservePerStint
+      );
+      
+      // Validate next stint if exists
+      let nextStintValidation = null;
+      if (nextStint) {
+        const nextStintFuelNeeded = nextStint.laps * fuelPerLap + reservePerStint;
+        const nextSufficiency = validateFuelSufficiency(
+          fuelAtStartOfNext,
+          nextStintFuelNeeded,
+          nextStint.laps,
+          fuelPerLap,
+          reservePerStint
+        );
+        nextStintValidation = nextSufficiency;
+      }
+      
+      // Generate validation messages
+      const validation = generateValidationMessages(
+        fuelValidation,
+        sufficiencyValidation,
+        stint.laps
+      );
+      
+      // Add next stint validation if insufficient
+      if (nextStintValidation && !nextStintValidation.isSufficient) {
+        validation.errors.push({
+          level: 'error',
+          type: 'next_stint_insufficient',
+          message: `Insufficient fuel for next stint (${nextStint.laps} laps)`,
+          details: {
+            required: nextStintValidation.required,
+            available: nextStintValidation.available,
+            shortfall: nextStintValidation.shortfall,
+            maxLapsPossible: nextStintValidation.maxLapsPossible,
+          },
+          quickFixes: [
+            { type: 'add_fuel', amount: nextStintValidation.shortfall, label: `Add ${roundTo(nextStintValidation.shortfall, 1)} L at this pit stop` },
+            { type: 'reduce_next_laps', laps: nextStintValidation.maxLapsPossible, label: `Reduce next stint to ${nextStintValidation.maxLapsPossible} laps` },
+          ],
+        });
+      }
+      
+      // Track changes for cascade indicator
+      if (idx >= cascadeStartIndex && idx > 0) {
+        const changes = [];
+        if (Math.abs(fuelLeft - (oldFuelLeft || 0)) > 0.01) {
+          changes.push({ type: 'fuelLeft', old: oldFuelLeft || 0, new: fuelLeft });
+        }
+        if (Math.abs(fuelToAdd - (oldFuelToAdd || 0)) > 0.01) {
+          changes.push({ type: 'fuelToAdd', old: oldFuelToAdd || 0, new: fuelToAdd });
+        }
+        if (Math.abs(fuelValidation.targetPerLap - (oldFuelTarget || 0)) > 0.01) {
+          changes.push({ type: 'fuelTarget', old: oldFuelTarget || 0, new: fuelValidation.targetPerLap });
+        }
+        if (changes.length > 0) {
+          changeHistory.set(stint.id, changes);
+        }
       }
       
       // Calculate pit stop times
       const fuelingTime = fuelToAdd > 0 ? (fuelToAdd / tankCapacity) * 41.1 : 0;
-      
-      // Calculate tire service time
-      const pitWallIsRight = pitStop.pitWallSide === 'right';
-      const wallCorners = pitWallIsRight ? ['RF', 'RR'] : ['LF', 'LR'];
-      const frontCorners = ['LF', 'RF'];
-      const rearCorners = ['LR', 'RR'];
-      
-      const selectedCorners = {};
-      if (pitStop.tireChange.left) { selectedCorners['LF'] = true; selectedCorners['LR'] = true; }
-      if (pitStop.tireChange.right) { selectedCorners['RF'] = true; selectedCorners['RR'] = true; }
-      if (pitStop.tireChange.front) { selectedCorners['LF'] = true; selectedCorners['RF'] = true; }
-      if (pitStop.tireChange.rear) { selectedCorners['LR'] = true; selectedCorners['RR'] = true; }
-      
-      const selectedCornerKeys = Object.keys(selectedCorners);
-      const selectedCount = selectedCornerKeys.length;
-      
-      let tireServiceTime = 0;
-      if (selectedCount > 0) {
-        const frontsSelectedOnly = frontCorners.every((corner) => selectedCorners[corner]) && !rearCorners.some((corner) => selectedCorners[corner]);
-        const rearsSelectedOnly = rearCorners.every((corner) => selectedCorners[corner]) && !frontCorners.some((corner) => selectedCorners[corner]);
-        if (frontsSelectedOnly) {
-          tireServiceTime = 10.5;
-        } else if (rearsSelectedOnly) {
-          tireServiceTime = 12;
-        } else {
-          tireServiceTime = selectedCornerKeys.reduce((total, corner) => {
-            const wallCorner = wallCorners.includes(corner);
-            return total + (wallCorner ? 5.5 : 7);
-          }, 0);
-        }
-      }
-      
+      const tireServiceTime = calculateTireServiceTime(pitStop.tireChange, pitStop.pitWallSide);
       const driverSwapTime = pitStop.driverSwap ? 25 : 0;
       const serviceTime = Math.max(fuelingTime, tireServiceTime, driverSwapTime);
       const perStopLoss = !isLastStint ? pitLaneDelta + serviceTime : 0;
       
       // Update fuel in tank for next stint
-      fuelInTank = fuelLeft + fuelToAdd;
+      fuelInTank = fuelAtStartOfNext;
       
       // Calculate stint duration
       const stintSeconds = stint.laps * lapSeconds;
@@ -868,14 +1271,30 @@ const DetailedStintPlanner = ({
         perStopLoss: perStopLoss,
         stintDuration: stintSeconds,
         pitStop: pitStop,
+        fuelTarget: fuelValidation.targetPerLap,
+        validation: validation,
+        fuelAtStart: fuelInTank - fuelToAdd,
       };
     });
+    
+    // Trigger cascade visual indicator
+    if (updatingStints.size > 0) {
+      setCascadeUpdating(updatingStints);
+      setCascadeHistory(changeHistory);
+      
+      // Clear the indicator after animation completes
+      setTimeout(() => {
+        setCascadeUpdating(new Set());
+        setCascadeHistory(new Map());
+      }, 1500);
+    }
+    
+    return recalculated;
   };
 
   const handleStintLapsChange = (stintId, newLaps) => {
     const updatedPlan = stintPlan.map(stint => {
       if (stint.id === stintId) {
-        // Ensure last stint is not editable
         const isLastStint = stint.id === stintPlan[stintPlan.length - 1].id;
         if (isLastStint) return stint;
         
@@ -885,8 +1304,7 @@ const DetailedStintPlanner = ({
       return stint;
     });
     
-    // Recalculate all stints
-    const recalculated = recalculateStintPlan(updatedPlan);
+    const recalculated = recalculateStintPlan(updatedPlan, stintId);
     setStintPlan(recalculated);
   };
 
@@ -898,79 +1316,326 @@ const DetailedStintPlanner = ({
       return stint;
     });
     
-    const recalculated = recalculateStintPlan(updatedPlan);
+    const recalculated = recalculateStintPlan(updatedPlan, stintId);
     setStintPlan(recalculated);
+  };
+
+  const handleQuickFix = (stintId, fix) => {
+    if (fix.type === 'add_fuel') {
+      // Find the pit stop before this stint
+      const stintIndex = stintPlan.findIndex(s => s.id === stintId);
+      if (stintIndex > 0) {
+        const prevStint = stintPlan[stintIndex - 1];
+        const currentFuelToAdd = prevStint.pitStop?.fuelToAdd !== undefined ? prevStint.pitStop.fuelToAdd : (prevStint.fuelToAdd || 0);
+        const newFuelToAdd = currentFuelToAdd + fix.amount;
+        
+        handlePitStopChange(prevStint.id, {
+          ...prevStint.pitStop,
+          fuelToAdd: newFuelToAdd,
+        });
+      }
+    } else if (fix.type === 'reduce_laps') {
+      handleStintLapsChange(stintId, fix.laps);
+    } else if (fix.type === 'reduce_next_laps') {
+      const stintIndex = stintPlan.findIndex(s => s.id === stintId);
+      if (stintIndex < stintPlan.length - 1) {
+        handleStintLapsChange(stintPlan[stintIndex + 1].id, fix.laps);
+      }
+    }
+  };
+
+  const toggleStintExpansion = (stintId) => {
+    const newExpanded = new Set(expandedStints);
+    if (newExpanded.has(stintId)) {
+      newExpanded.delete(stintId);
+    } else {
+      newExpanded.clear();
+      newExpanded.add(stintId);
+    }
+    setExpandedStints(newExpanded);
   };
 
   return (
     <div className="stint-list">
+      {/* Add CSS for cascade animation */}
+      <style>{`
+        @keyframes cascadePulse {
+          0% {
+            background-color: rgba(56, 189, 248, 0);
+            box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+          }
+          50% {
+            background-color: rgba(56, 189, 248, 0.15);
+            box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.2);
+          }
+          100% {
+            background-color: rgba(56, 189, 248, 0);
+            box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+          }
+        }
+        
+        @keyframes valueChange {
+          0% {
+            transform: scale(1);
+            color: inherit;
+          }
+          50% {
+            transform: scale(1.05);
+            color: var(--accent);
+          }
+          100% {
+            transform: scale(1);
+            color: inherit;
+          }
+        }
+        
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+        
+        .cascade-updating {
+          animation: cascadePulse 1.5s ease-out;
+        }
+        
+        .value-changed {
+          animation: valueChange 0.6s ease-out;
+        }
+      `}</style>
+      
       {stintPlan.map((stint, idx) => {
         const isFirstStint = idx === 0;
         const isLastStint = idx === stintPlan.length - 1;
         const nextStint = !isLastStint ? stintPlan[idx + 1] : null;
+        const isUpdating = cascadeUpdating.has(stint.id);
+        const changes = cascadeHistory.get(stint.id);
+        const isExpanded = expandedStints.has(stint.id);
+        
         const usableFuel = Math.max(stint.fuel - reservePerStint - (isFirstStint ? formationLapFuel : 0), 0);
-        const fuelPerLapTarget = stint.laps ? usableFuel / stint.laps : 0;
+        const fuelPerLapTarget = stint.fuelTarget || (stint.laps ? usableFuel / stint.laps : 0);
         const fuelAtStart = idx === 0 
           ? roundTo(safeNumber(form.tankCapacity) || 106, 1)
           : roundTo((stintPlan[idx - 1]?.fuelLeft || 0) + (stintPlan[idx - 1]?.fuelToAdd || 0), 1);
 
         return (
           <div key={stint.id} style={{ display: 'contents' }}>
-            <div className="stint-item">
-              <div>
-                <strong>Stint {stint.id}</strong>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '4px' }}>
-                  Fuel at Start: {fuelAtStart} L
+            <div 
+              className={`stint-item ${isUpdating ? 'cascade-updating' : ''}`}
+              style={{
+                position: 'relative',
+                opacity: stint.validation?.errors.some(e => e.level === 'critical') ? 0.7 : 1,
+                border: stint.validation?.errors.length > 0 
+                  ? `2px solid ${stint.validation.errors.some(e => e.level === 'critical') ? '#ef4444' : '#ef4444'}`
+                  : stint.validation?.warnings.length > 0
+                  ? '2px solid #eab308'
+                  : '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '12px',
+                marginBottom: '8px',
+                transition: 'all 0.3s ease',
+              }}
+            >
+              {/* Cascade indicator badge */}
+              {isUpdating && (
+                <div style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  background: 'rgba(56, 189, 248, 0.9)',
+                  color: '#fff',
+                  fontSize: '0.65rem',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  fontWeight: 600,
+                  zIndex: 10,
+                  animation: 'pulse 1.5s ease-out infinite',
+                }}>
+                  Updating...
                 </div>
-                <div className="stint-meta">
-                  <span>
-                    Laps {stint.startLap}–{stint.endLap} ({stint.laps} lap{stint.laps > 1 ? 's' : ''})
-                  </span>
-                  <span>{formatDuration(stint.stintDuration)}</span>
-                </div>
-                {!isLastStint && (
-                  <div style={{ marginTop: 8 }}>
-                    <label className="field-label" style={{ fontSize: '0.75rem', marginBottom: 2, display: 'block' }}>
-                      Laps
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="200"
-                      value={stint.laps}
-                      onChange={(e) => handleStintLapsChange(stint.id, e.target.value)}
-                      style={{ 
-                        width: '60px', 
-                        padding: '4px 6px', 
-                        fontSize: '0.75rem',
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '4px',
-                        color: 'var(--text)',
-                      }}
-                    />
+              )}
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <strong>Stint {stint.id}</strong>
+                    {isUpdating && (
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        color: 'var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}>
+                        <span style={{ 
+                          display: 'inline-block',
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: 'var(--accent)',
+                          animation: 'pulse 1s ease-out infinite',
+                        }} />
+                        Recalculating...
+                      </span>
+                    )}
                   </div>
-                )}
-                {isLastStint && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                    (Auto-adjusted to complete race)
-                  </div>
-                )}
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <span className="stat-label">Fuel Target / Lap</span>
-                <div className="stat-value" style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-                  {fuelPerLapTarget.toFixed(2)} L
-                  <span className="help-badge" tabIndex={0}>
-                    <span className="help-icon" style={{ fontSize: '0.7rem' }}>ℹ</span>
-                    <span className="help-tooltip">
-                      Target fuel consumption per lap. {isFirstStint && formationLapFuel > 0 ? `Formation lap fuel (${roundTo(formationLapFuel, 1)} L) is already accounted for in this calculation.` : 'Based on usable fuel and number of laps.'}
+                  
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Fuel at Start: <span className={changes?.some(c => c.type === 'fuelAtStart') ? 'value-changed' : ''}>
+                      {fuelAtStart} L
                     </span>
-                  </span>
+                  </div>
+                  
+                  <div className="stint-meta">
+                    <span>
+                      Laps {stint.startLap}–{stint.endLap} ({stint.laps} lap{stint.laps > 1 ? 's' : ''})
+                    </span>
+                    <span>{formatDuration(stint.stintDuration)}</span>
+                  </div>
+                  
+                  {!isLastStint && (
+                    <div style={{ marginTop: 8 }}>
+                      <label className="field-label" style={{ fontSize: '0.75rem', marginBottom: 2, display: 'block' }}>
+                        Laps
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="200"
+                        value={stint.laps}
+                        onChange={(e) => handleStintLapsChange(stint.id, e.target.value)}
+                        style={{ 
+                          width: '60px', 
+                          padding: '4px 6px', 
+                          fontSize: '0.75rem',
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          color: 'var(--text)',
+                        }}
+                      />
+                    </div>
+                  )}
+                  
+                  {isLastStint && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                      (Auto-adjusted to complete race)
+                    </div>
+                  )}
                 </div>
-                {stint.fuelLeft !== undefined && (
-                  <div className="stat-label" style={{ marginTop: 4, color: 'var(--text-muted)' }}>
-                    Fuel Left: {roundTo(stint.fuelLeft, 1)} L
+                
+                <FuelTargetDisplay
+                  target={fuelPerLapTarget}
+                  validation={stint.validation}
+                  isFirstStint={isFirstStint}
+                  formationLapFuel={formationLapFuel}
+                  isUpdating={isUpdating}
+                  changes={changes}
+                />
+              </div>
+              
+              {/* Show change indicators */}
+              {isUpdating && changes && changes.length > 0 && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '6px',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                }}>
+                  {Array.isArray(changes) ? (
+                    changes.map((change, cIdx) => (
+                      <div key={cIdx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--accent)' }}>→</span>
+                        <span>
+                          {change.type === 'fuelLeft' && `Fuel left: ${roundTo(change.old, 1)} → ${roundTo(change.new, 1)} L`}
+                          {change.type === 'fuelToAdd' && `Fuel to add: ${roundTo(change.old, 1)} → ${roundTo(change.new, 1)} L`}
+                          {change.type === 'fuelTarget' && `Target: ${roundTo(change.old, 2)} → ${roundTo(change.new, 2)} L/lap`}
+                          {change.type === 'laps' && `Laps: ${change.old} → ${change.new}`}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--accent)' }}>→</span>
+                      <span>
+                        {changes.type === 'laps' && `Laps: ${changes.old} → ${changes.new}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Validation messages */}
+              {stint.validation && (
+                <ValidationMessage
+                  validation={stint.validation}
+                  onQuickFix={(fix) => handleQuickFix(stint.id, fix)}
+                />
+              )}
+              
+              {/* Expandable details */}
+              <div style={{ marginTop: '8px' }}>
+                <button
+                  onClick={() => toggleStintExpansion(stint.id)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--accent)',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    padding: '4px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  {isExpanded ? '▼' : '▶'} {isExpanded ? 'Hide' : 'Show'} details
+                </button>
+                
+                {isExpanded && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '12px',
+                    background: 'var(--surface-muted)',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                  }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Fuel Used:</div>
+                        <div>{roundTo(stint.fuel, 1)} L</div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Fuel Left:</div>
+                        <div>{roundTo(stint.fuelLeft, 1)} L</div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Reserve:</div>
+                        <div>{roundTo(reservePerStint, 1)} L</div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Usable Fuel:</div>
+                        <div>{roundTo(usableFuel, 1)} L</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '4px' }}>
+                        Calculation:
+                      </div>
+                      <div style={{ fontSize: '0.75rem', lineHeight: '1.6' }}>
+                        <div>Usable = {roundTo(stint.fuel, 1)} - {roundTo(reservePerStint, 1)} - {isFirstStint && formationLapFuel > 0 ? `${roundTo(formationLapFuel, 1)}` : '0'} = {roundTo(usableFuel, 1)} L</div>
+                        <div>Target = {roundTo(usableFuel, 1)} ÷ {stint.laps} = {roundTo(fuelPerLapTarget, 2)} L/lap</div>
+                        <div style={{ marginTop: '4px', color: 'var(--text-muted)' }}>
+                          Minimum: {roundTo(getStandardFuelPerLap() * 0.90, 2)} L/lap (90% of {roundTo(getStandardFuelPerLap(), 2)} L/lap)
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -984,6 +1649,7 @@ const DetailedStintPlanner = ({
                 form={form}
                 onPitStopChange={(pitStopData) => handlePitStopChange(stint.id, pitStopData)}
                 pitStopIndex={stint.id}
+                isUpdating={cascadeUpdating.has(stint.id) || cascadeUpdating.has(nextStint.id)}
               />
             )}
           </div>
@@ -1173,7 +1839,7 @@ const calculateTireServiceTime = (tireChange, pitWallSide) => {
 };
 
 // Compact Pit Stop Interface Component
-const PitStopInterface = ({ stint, nextStint, form, onPitStopChange, pitStopIndex }) => {
+const PitStopInterface = ({ stint, nextStint, form, onPitStopChange, pitStopIndex, isUpdating = false }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [fuelToAdd, setFuelToAdd] = useState(stint.fuelToAdd || 0);
   const [tireChange, setTireChange] = useState(stint.pitStop?.tireChange || {
@@ -1254,6 +1920,26 @@ const PitStopInterface = ({ stint, nextStint, form, onPitStopChange, pitStopInde
       >
         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent)' }}>
           Pit Stop {pitStopIndex}
+          {isUpdating && (
+            <span style={{ 
+              marginLeft: '8px',
+              fontSize: '0.7rem',
+              color: 'var(--accent)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}>
+              <span style={{ 
+                display: 'inline-block',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: 'var(--accent)',
+                animation: 'pulse 1s ease-out infinite',
+              }} />
+              Updating...
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--accent)' }}>
