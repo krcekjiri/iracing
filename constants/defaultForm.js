@@ -1,0 +1,16 @@
+const defaultForm = {
+  raceDurationMinutes: 180,
+  averageLapTime: '01:43.500',
+  fuelPerLap: 3.18,
+  fuelSavingLapTime: '01:43.900',
+  fuelSavingFuelPerLap: 3.07,
+  extraFuelSavingLapTime: '01:44.200',
+  extraFuelSavingFuelPerLap: 2.98,
+  tankCapacity: 106,
+  fuelReserveLiters: 0.3,
+  pitLaneDeltaSeconds: 27,
+  stationaryServiceSeconds: 42,
+  formationLapFuel: 1.5,
+  minLapsPerStint: '',
+  maxLapsPerStint: '',
+};

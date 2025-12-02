@@ -26,11 +26,35 @@
   </head>
   <body>
     <div id="app-root"></div>
-    <script
-      type="text/babel"
-      data-presets="react"
-      src="./app.jsx"
-    ></script>
+    <!-- Constants -->
+    <script type="text/babel" data-presets="react" src="./constants/defaultForm.js"></script>
+    <!-- Utilities -->
+    <script type="text/babel" data-presets="react" src="./utils/formatters.js"></script>
+    <script type="text/babel" data-presets="react" src="./utils/parsers.js"></script>
+    <script type="text/babel" data-presets="react" src="./utils/timezone.js"></script>
+    <script type="text/babel" data-presets="react" src="./utils/validators.js"></script>
+    <!-- Logic -->
+    <script type="text/babel" data-presets="react" src="./logic/simulateRace.js"></script>
+    <script type="text/babel" data-presets="react" src="./logic/computePlan.js"></script>
+    <!-- Small Components -->
+    <script type="text/babel" data-presets="react" src="./components/InputField.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/Stat.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/SectionHeading.jsx"></script>
+    <!-- Large Components -->
+    <script type="text/babel" data-presets="react" src="./components/DRIVER_COLORS.js"></script>
+    <script type="text/babel" data-presets="react" src="./components/ValidationMessage.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/FuelTargetDisplay.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/StrategyTab.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/DetailedStintPlanner.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/StrategyGraph.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/PitStopInterface.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/StintPlanCard.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/DriverManager.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/GanttChart.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/ScheduleSummary.jsx"></script>
+    <script type="text/babel" data-presets="react" src="./components/PlannerApp.jsx"></script>
+    <!-- Entry Point -->
+    <script type="text/babel" data-presets="react" src="./app.jsx"></script>
   </body>
 </html>
 
