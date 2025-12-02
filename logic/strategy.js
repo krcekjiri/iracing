@@ -97,6 +97,7 @@ const simulateRace = ({
 
   const pitStops = stints.length - 1;
   let totalPitTime = 0;
+  const pitStopTimes = []; // Store individual pit stop times
   
   for (let i = 0; i < pitStops; i++) {
     const isLastPitStop = i === pitStops - 1;
@@ -115,7 +116,11 @@ const simulateRace = ({
     }
     
     const fuelingTime = (fuelToAdd / tankCapacity) * FULL_TANK_FUELING_TIME;
-    totalPitTime += pitLaneDelta + Math.max(fuelingTime, stationaryService);
+    const pitStopTime = pitLaneDelta + Math.max(fuelingTime, stationaryService);
+    pitStopTimes.push(pitStopTime); // Store individual pit stop time
+    totalPitTime += pitStopTime;
+    // Store perStopLoss on the stint for easy access
+    stints[i].perStopLoss = pitStopTime;
   }
 
   return {
@@ -447,11 +452,13 @@ const computePlan = (form, strategyMode = 'standard') => {
     const usableFuel = fuelAtStart - reserveLiters;
     const fuelTarget = stint.laps > 0 ? usableFuel / stint.laps : 0;
 
-    // Calculate fuel to add at pit stop
+    // Use perStopLoss directly from stint if available (calculated in simulateRace)
+    // Otherwise calculate it (for fuel-saving strategy which uses simulateMixedStrategy)
+    let perStopLoss = stint.perStopLoss || 0;
     let fuelToAdd = 0;
-    let fuelingTime = 0;
-    let perStopLoss = 0;
-    if (!isLastStint) {
+    
+    if (!isLastStint && !perStopLoss) {
+      // Only calculate if not already set by simulateRace
       // Check if this is the last pit stop (before final stint)
       const isLastPitStop = idx === result.stints.length - 2;
       
@@ -466,8 +473,12 @@ const computePlan = (form, strategyMode = 'standard') => {
         // Full tank for non-final pit stops
         fuelToAdd = tankCapacity - stint.fuelRemaining;
       }
-      fuelingTime = (fuelToAdd / tankCapacity) * FULL_TANK_FUELING_TIME;
+      const fuelingTime = (fuelToAdd / tankCapacity) * FULL_TANK_FUELING_TIME;
       perStopLoss = pitLaneDelta + Math.max(fuelingTime, stationaryService);
+    }
+    
+    if (!isLastStint) {
+      fuelToAdd = fuelToAdd || (tankCapacity - stint.fuelRemaining);
     }
 
     // Calculate stint duration (from duration field, or estimate from laps)
