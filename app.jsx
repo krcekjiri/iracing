@@ -847,7 +847,15 @@ const computePlan = (form, strategyMode = 'standard') => {
           candidateLaps += 1;
         }
         
-        if (candidateFractionalLaps === 0 && candidateTime <= maxRaceTimeSeconds) {
+        // If we completed all laps within time, fractional = full laps
+        // Check if we actually completed all planned laps
+        const totalPlannedLaps = earlyStintsLaps.reduce((sum, laps) => sum + laps, 0) + candidateLastStintLaps;
+        if (candidateLaps >= totalPlannedLaps && candidateTime <= maxRaceTimeSeconds) {
+          // Completed all planned laps within race time
+          candidateFractionalLaps = candidateLaps;
+        } else if (candidateFractionalLaps === 0 && candidateTime <= maxRaceTimeSeconds) {
+          // If fractional laps wasn't set (didn't hit timer), set to completed laps
+          // This handles edge cases where simulation completes without hitting limit
           candidateFractionalLaps = candidateLaps;
         }
       }
@@ -1298,9 +1306,22 @@ const StrategyTab = ({
                         detail={`${strategy.result.pitStops} stops • ~${strategy.result.lapsPerStint} laps/stint`}
                         helpText={
                           strategy.result.stintPlan && strategy.result.stintPlan.length > 0
-                            ? `Exact distribution: ${strategy.result.stintPlan.map((s, idx) => 
-                                `Stint ${idx + 1}: ${s.laps} lap${s.laps > 1 ? 's' : ''}${s.stintMode === 'extra-fuel-saving' ? ' (Extra Fuel-Saving ⚡)' : ''}`
-                              ).join(', ')}`
+                            ? strategy.result.stintPlan.map((s) => {
+                                const modeLabel = s.stintMode === 'extra-fuel-saving' 
+                                  ? 'Extra Fuel-Saving ⚡' 
+                                  : s.stintMode === 'fuel-saving' 
+                                    ? 'Fuel-Saving' 
+                                    : 'Standard';
+                                const lapRange = s.startLap === s.endLap 
+                                  ? `Lap ${s.startLap}` 
+                                  : `Laps ${s.startLap}-${s.endLap}`;
+                                const fuelTarget = s.fuelTarget !== undefined 
+                                  ? `${s.fuelTarget.toFixed(2)} L/lap` 
+                                  : s.strategyFuelPerLap !== undefined 
+                                    ? `${s.strategyFuelPerLap.toFixed(2)} L/lap` 
+                                    : '';
+                                return `Stint ${s.id}: ${s.laps} lap${s.laps > 1 ? 's' : ''} (${lapRange}) - ${modeLabel}${fuelTarget ? ` - ${fuelTarget}` : ''}`;
+                              }).join('\n')
                             : undefined
                         }
                       />
