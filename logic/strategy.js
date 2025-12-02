@@ -97,8 +97,23 @@ const simulateRace = ({
 
   const pitStops = stints.length - 1;
   let totalPitTime = 0;
+  
   for (let i = 0; i < pitStops; i++) {
-    const fuelToAdd = tankCapacity - stints[i].fuelRemaining;
+    const isLastPitStop = i === pitStops - 1;
+    let fuelToAdd;
+    
+    if (isLastPitStop) {
+      // Last pit: only add enough fuel for final stint + reserve
+      const finalStint = stints[i + 1];
+      const fuelNeededForFinalStint = (finalStint.laps * fuelPerLap) + reserveFuel;
+      fuelToAdd = Math.max(0, fuelNeededForFinalStint - stints[i].fuelRemaining);
+      // Update the stint's starting fuel to reflect the splash
+      stints[i + 1].splashFuel = fuelToAdd;
+    } else {
+      // Full tank for non-final pit stops
+      fuelToAdd = tankCapacity - stints[i].fuelRemaining;
+    }
+    
     const fuelingTime = (fuelToAdd / tankCapacity) * FULL_TANK_FUELING_TIME;
     totalPitTime += pitLaneDelta + Math.max(fuelingTime, stationaryService);
   }
