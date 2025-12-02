@@ -469,32 +469,45 @@ const computePlan = (form, strategyMode = 'standard') => {
   // ========== STEP 5: Optimize Stint Count to Minimize Pit Stops ==========
   const totalLaps = fullLapsForPlanning > 0 ? fullLapsForPlanning : Math.ceil(fractionalLapsAtZero);
   
+  console.log('=== STINT COUNT OPTIMIZATION DEBUG ===');
   console.log('Total laps for planning:', totalLaps);
   console.log('Effective max laps per stint:', effectiveMaxLapsPerStint);
+  console.log('Max laps per stint (fuel-based):', maxLapsPerStintWithFuel);
+  console.log('Strategy mode:', strategyMode);
+  console.log('Fuel per lap:', fuelPerLap, 'L');
   
   // Start with minimum possible stints
   let stintCount = Math.ceil(totalLaps / effectiveMaxLapsPerStint);
   
-  console.log('Initial stint count:', stintCount);
+  console.log('Initial stint count (ceiling):', stintCount);
+  console.log('Calculation: Math.ceil(', totalLaps, '/', effectiveMaxLapsPerStint, ') =', stintCount);
   
   // Check if we can actually fit all laps with this stint count
   const avgLapsPerStint = totalLaps / stintCount;
+  console.log('Average laps per stint with', stintCount, 'stints:', avgLapsPerStint.toFixed(2));
+  
   if (avgLapsPerStint > effectiveMaxLapsPerStint) {
     // Can't fit - need more stints
     stintCount = Math.ceil(totalLaps / effectiveMaxLapsPerStint);
-    console.log('Cannot fit - increased to:', stintCount);
+    console.log('❌ Cannot fit - avg (', avgLapsPerStint.toFixed(2), ') > max (', effectiveMaxLapsPerStint, ')');
+    console.log('Increased to:', stintCount);
   } else {
+    console.log('✅ Can fit - avg (', avgLapsPerStint.toFixed(2), ') <= max (', effectiveMaxLapsPerStint, ')');
     // We can fit - but check if we can use even fewer stints by redistributing
     let testStintCount = stintCount - 1;
+    console.log('Testing if we can use fewer stints...');
     while (testStintCount > 0) {
       const testAvgLaps = totalLaps / testStintCount;
+      console.log(`  Testing ${testStintCount} stints: avg = ${testAvgLaps.toFixed(2)} laps/stint`);
       if (testAvgLaps <= effectiveMaxLapsPerStint) {
         // Can fit with fewer stints - use this
+        console.log(`  ✅ Can fit with ${testStintCount} stints! (avg: ${testAvgLaps.toFixed(2)} <= max: ${effectiveMaxLapsPerStint})`);
         stintCount = testStintCount;
-        console.log('Can fit with fewer stints:', stintCount, '(avg laps:', testAvgLaps.toFixed(1), ')');
+        console.log('  Updated stint count to:', stintCount);
         testStintCount--; // Try even fewer
       } else {
         // Can't fit with fewer - stop
+        console.log(`  ❌ Cannot fit with ${testStintCount} stints (avg: ${testAvgLaps.toFixed(2)} > max: ${effectiveMaxLapsPerStint})`);
         break;
       }
     }
@@ -503,8 +516,11 @@ const computePlan = (form, strategyMode = 'standard') => {
   stintCount = Math.max(1, stintCount);
   let pitStops = Math.max(0, stintCount - 1);
   
+  console.log('=== FINAL STINT COUNT DECISION ===');
   console.log('Final stint count:', stintCount);
   console.log('Pit stops:', pitStops);
+  console.log('Distribution will be:', Math.floor(totalLaps / stintCount), 'base +', totalLaps % stintCount, 'extra');
+  console.log('===================================');
 
   // ========== STEP 6: Distribute Laps Evenly Across Stints ==========
   let baseLapsPerStint = Math.floor(totalLaps / stintCount);
@@ -544,6 +560,19 @@ const computePlan = (form, strategyMode = 'standard') => {
       console.log(`Cannot reduce stints: avg would be ${testAvgLaps.toFixed(1)} (max: ${effectiveMaxLapsPerStint}), last would be ${adjustedLastStintLaps} (min: ${minLapsThreshold})`);
     }
   }
+
+  // ========== DISTRIBUTION PREVIEW ==========
+  console.log('=== DISTRIBUTION PREVIEW ===');
+  console.log('Base laps per stint:', baseLapsPerStint);
+  console.log('Extra laps to distribute:', extraLaps);
+  const previewDistribution = [];
+  for (let i = 0; i < stintCount; i++) {
+    const laps = baseLapsPerStint + (i < extraLaps ? 1 : 0);
+    previewDistribution.push(laps);
+  }
+  console.log('Preview distribution:', previewDistribution.join(' + '), '=', previewDistribution.reduce((a, b) => a + b, 0), 'laps');
+  console.log('Last stint would be:', baseLapsPerStint, 'laps');
+  console.log('=============================');
 
   // ========== TWO-CANDIDATE COMPARISON: Pure vs Mixed Strategy ==========
   // Candidate A: Pure strategy (all stints use same mode)
@@ -1036,6 +1065,13 @@ const StrategyTab = ({
                         label="Stints & Stops"
                         value={`${strategy.result.stintCount} stints`}
                         detail={`${strategy.result.pitStops} stops • ~${strategy.result.lapsPerStint} laps/stint`}
+                        helpText={
+                          strategy.result.stintPlan && strategy.result.stintPlan.length > 0
+                            ? `Exact distribution: ${strategy.result.stintPlan.map((s, idx) => 
+                                `Stint ${idx + 1}: ${s.laps} lap${s.laps > 1 ? 's' : ''}${s.stintMode === 'extra-fuel-saving' ? ' (Extra Fuel-Saving ⚡)' : ''}`
+                              ).join(', ')}`
+                            : undefined
+                        }
                       />
                       <Stat
                         label="Total Pit Time"
