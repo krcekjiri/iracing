@@ -10,7 +10,6 @@ const defaultForm = {
   extraFuelSavingLapTime: '1:45.100',
   extraFuelSavingFuelPerLap: 3.02,
   pitLaneDeltaSeconds: 27,
-  stationaryServiceSeconds: 0,
   minLapsPerStint: '',
   maxLapsPerStint: '',
 };

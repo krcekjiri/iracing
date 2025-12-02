@@ -447,7 +447,7 @@ const PlannerApp = () => {
           </div>
           <div className="inputs-grid">
         <div className="card">
-          <SectionHeading title="Race & Fuel" />
+          <SectionHeading title="Race Parameters" />
           <InputField
             label="Race Duration"
             suffix="min"
@@ -482,10 +482,6 @@ const PlannerApp = () => {
             step="0.1"
             helpText="Fuel consumed during formation lap. This reduces available fuel for Stint 1, which may decrease the number of laps possible in the first stint."
           />
-        </div>
-
-        <div className="card">
-          <SectionHeading title="Pit Stop" />
           <InputField
             label="Pit Lane Delta"
             suffix="sec"
@@ -493,14 +489,6 @@ const PlannerApp = () => {
             value={form.pitLaneDeltaSeconds}
             onChange={handleInput('pitLaneDeltaSeconds')}
             helpText="Time from pit entry to exit when just driving through. Already accounts for the shorter lane distance."
-          />
-          <InputField
-            label="Stationary Service"
-            suffix="sec"
-            type="number"
-            value={form.stationaryServiceSeconds}
-            onChange={handleInput('stationaryServiceSeconds')}
-            helpText="Fueling + tire change duration (or any extra service). Added to the lane delta for total pit loss."
           />
         </div>
 
