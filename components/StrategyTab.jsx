@@ -30,16 +30,18 @@ const StrategyTab = ({
     return { withoutPits: avgLapWithoutPits, withPits: avgLapWithPits };
   };
 
-  // Format pit stop times
+  // Format pit stop times - displays exactly what's calculated in strategy.js
   const formatPitStopTimes = (result) => {
     if (!result?.stintPlan?.length) return 'No stops';
+    // Get perStopLoss directly from each stint (calculated in strategy.js)
     const stopTimes = result.stintPlan
       .filter((stint, idx) => idx < result.stintPlan.length - 1)
-      .map(stint => stint.perStopLoss);
+      .map(stint => stint.perStopLoss || 0)
+      .filter(time => time > 0); // Filter out any zero/undefined values
     if (stopTimes.length === 0) return 'No stops';
-    const allSame = stopTimes.every(time => Math.abs(time - stopTimes[0]) < 0.1);
-    if (allSame) {
-      return `${roundTo(stopTimes[0], 1)}s × ${result.pitStops || 0} stops`;
+    // Always show individual times to see splash-and-dash optimization
+    if (stopTimes.length === 1) {
+      return `${roundTo(stopTimes[0], 1)}s`;
     }
     return stopTimes.map((time) => `${roundTo(time, 1)}s`).join(' + ');
   };
