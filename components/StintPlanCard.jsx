@@ -1,3 +1,6 @@
+// ==================== STINT PLAN CARD ====================
+// Updated: Compact Grid Layout, Aligned Columns, Crisper UI
+
 const StintPlanCard = ({
   plan,
   reservePerStint = 0,
@@ -14,8 +17,6 @@ const StintPlanCard = ({
   if (!plan?.length) {
     return <div className="empty-state">Enter race details to generate a stint plan.</div>;
   }
-
-  // Drag and drop removed - stints are no longer reorderable
 
   // Recalculate all stint data - ensure subsequent stints respect fuel added
   const recalculateStintPlan = (newPlan, form, reservePerStint, formationLapFuel) => {
@@ -73,7 +74,7 @@ const StintPlanCard = ({
         pitStop.fuelToAdd = fuelToAdd;
       }
       
-      // Calculate tire service time if tires are changed (using exact pit stop modelling logic)
+      // Calculate tire service time if tires are changed
       const pitWallIsRight = pitStop.pitWallSide === 'left' ? false : true;
       const wallCorners = pitWallIsRight ? ['RF', 'RR'] : ['LF', 'LR'];
       const frontCorners = ['LF', 'RF'];
@@ -108,7 +109,7 @@ const StintPlanCard = ({
       const serviceTime = Math.max(fuelingTime, tireServiceTime, driverSwapTime);
       const perStopLoss = !isLastStint ? pitLaneDelta + serviceTime : 0;
       
-      // Update fuel in tank for next stint - CRITICAL: use fuelToAdd from pit stop config
+      // Update fuel in tank for next stint
       const actualFuelToAdd = pitStop.fuelToAdd !== undefined ? pitStop.fuelToAdd : fuelToAdd;
       fuelInTank = fuelLeft + actualFuelToAdd;
       
@@ -129,7 +130,7 @@ const StintPlanCard = ({
   };
 
   return (
-    <div className="stint-list">
+    <div className="stint-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {reorderedPlan.map((stint, idx) => {
         const isFirstStint = idx === 0;
         const isLastStint = idx === reorderedPlan.length - 1;
@@ -137,63 +138,86 @@ const StintPlanCard = ({
         const usableFuel = Math.max(stint.fuel - reservePerStint - (isFirstStint ? formationLapFuel : 0), 0);
         const fuelPerLapTarget = stint.laps ? usableFuel / stint.laps : 0;
         const perLapDisplay = fuelPerLapTarget.toFixed(2);
+        
+        // Calculate Fuel Start for display
+        const fuelStart = idx === 0 
+          ? roundTo(safeNumber(form.tankCapacity) || 106, 1) 
+          : roundTo((reorderedPlan[idx - 1]?.fuelLeft || 0) + (reorderedPlan[idx - 1]?.fuelToAdd || 0), 1);
 
         return (
-          <div key={stint.id} style={{ display: 'contents' }}>
+          <div key={stint.id} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+            {/* Main Stint Card */}
             <div
               className="stint-item"
+              style={{
+                display: 'grid',
+                // Grid: Info | Start | Target | Left
+                gridTemplateColumns: 'minmax(140px, 2fr) 1fr 1fr 1fr',
+                gap: '12px',
+                alignItems: 'center',
+                padding: '12px 16px',
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                position: 'relative'
+              }}
             >
-              <div>
-                <strong>Stint {stint.id}</strong>
-                {/* Add fuel tank at start */}
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '4px' }}>
-                  Fuel at Start: {idx === 0 ? roundTo(safeNumber(form.tankCapacity) || 106, 1) : roundTo((reorderedPlan[idx - 1]?.fuelLeft || 0) + (reorderedPlan[idx - 1]?.fuelToAdd || 0), 1)} L
+              {/* Col 1: Stint Info */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ color: '#fff', fontWeight: 600, fontSize: '0.95rem' }}>
+                  Stint {stint.id}
                 </div>
-                <div className="stint-meta">
-                  <span>
-                    Laps {stint.startLap}–{stint.endLap} ({stint.laps} lap
-                    {stint.laps > 1 ? 's' : ''})
-                  </span>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>Laps {stint.startLap}–{stint.endLap} ({stint.laps})</span>
+                  <span style={{ opacity: 0.3 }}>|</span>
                   <span>{formatDuration(stint.stintDuration)}</span>
                 </div>
               </div>
+
+              {/* Col 2: Start Fuel */}
               <div style={{ textAlign: 'right' }}>
-                <span className="stat-label">Fuel Target / Lap</span>
-                <div className="stat-value" style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-                  {perLapDisplay} L
-                  {/* Move tooltip here and explain formation lap */}
-                  <span className="help-badge" tabIndex={0}>
-                    <span className="help-icon" style={{ fontSize: '0.7rem' }}>ℹ</span>
-                    <span className="help-tooltip">
-                      Target fuel consumption per lap. {isFirstStint && formationLapFuel > 0 ? `Formation lap fuel (${roundTo(formationLapFuel, 1)} L) is already accounted for in this calculation.` : 'Based on usable fuel and number of laps.'}
-                    </span>
-                  </span>
+                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '2px' }}>Start</div>
+                <div style={{ fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  {fuelStart} L
                 </div>
-                {stint.fuelLeft !== undefined && (
-                  <div className="stat-label" style={{ marginTop: 4, color: 'var(--text-muted)' }}>
-                    Fuel Left: {roundTo(stint.fuelLeft, 1)} L
-                  </div>
-                )}
+              </div>
+
+              {/* Col 3: Target/Lap (Highlighted) */}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '2px' }}>Target</div>
+                <div style={{ fontFamily: 'monospace', color: '#34d399', fontSize: '1.1rem', fontWeight: 700 }}>
+                  {perLapDisplay}
+                  <span style={{ fontSize: '0.75rem', fontWeight: 400, marginLeft: '2px', opacity: 0.8 }}>L</span>
+                </div>
+              </div>
+
+              {/* Col 4: Fuel Left */}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '2px' }}>Left</div>
+                <div style={{ fontFamily: 'monospace', color: stint.fuelLeft < 2 ? '#f87171' : 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  {roundTo(stint.fuelLeft, 1)} L
+                </div>
               </div>
             </div>
             
             {/* Pit Stop Interface (between stints) */}
             {!isLastStint && nextStint && (
-              <PitStopInterface
-                stint={stint}
-                nextStint={nextStint}
-                form={form}
-                onPitStopChange={(pitStopData) => {
-                  // Update pit stop data and recalculate
-                  const updatedPlan = [...reorderedPlan];
-                  updatedPlan[idx].pitStop = pitStopData;
-                  const recalculated = recalculateStintPlan(updatedPlan, form, reservePerStint, formationLapFuel);
-                  setReorderedPlan(recalculated);
-                  if (onReorder) {
-                    onReorder(recalculated);
-                  }
-                }}
-              />
+              <div style={{ padding: '0 8px' }}>
+                <PitStopInterface
+                  stint={stint}
+                  nextStint={nextStint}
+                  form={form}
+                  onPitStopChange={(pitStopData) => {
+                    const updatedPlan = [...reorderedPlan];
+                    updatedPlan[idx].pitStop = pitStopData;
+                    const recalculated = recalculateStintPlan(updatedPlan, form, reservePerStint, formationLapFuel);
+                    setReorderedPlan(recalculated);
+                    if (onReorder) {
+                      onReorder(recalculated);
+                    }
+                  }}
+                />
+              </div>
             )}
           </div>
         );

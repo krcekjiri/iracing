@@ -1,8 +1,8 @@
 // ==================== STRATEGY COMPARISON TABLE ====================
-// Updated with selection support
+// Updated: Top 5 Limit, Sorted, Simplified Names, Fractional Laps, Full Columns, Hover Effects
 
 const formatTime = (seconds) => {
-  if (seconds === 0) return '-';
+  if (!seconds && seconds !== 0) return '-';
   const sign = seconds >= 0 ? '+' : '-';
   const abs = Math.abs(seconds);
   if (abs >= 60) {
@@ -15,24 +15,12 @@ const formatTime = (seconds) => {
 
 const ModeTag = ({ mode, count }) => {
   const modeStyles = {
-    std: {
-      background: 'rgba(59, 130, 246, 0.2)',
-      color: '#3b82f6',
-      borderColor: 'rgba(59, 130, 246, 0.3)',
-    },
-    fs: {
-      background: 'rgba(234, 179, 8, 0.2)',
-      color: '#eab308',
-      borderColor: 'rgba(234, 179, 8, 0.3)',
-    },
-    efs: {
-      background: 'rgba(245, 158, 11, 0.2)',
-      color: '#f59e0b',
-      borderColor: 'rgba(245, 158, 11, 0.3)',
-    },
+    std: { bg: 'rgba(59, 130, 246, 0.2)', col: '#3b82f6', bord: 'rgba(59, 130, 246, 0.3)' },
+    fs: { bg: 'rgba(234, 179, 8, 0.2)', col: '#eab308', bord: 'rgba(234, 179, 8, 0.3)' },
+    efs: { bg: 'rgba(245, 158, 11, 0.2)', col: '#f59e0b', bord: 'rgba(245, 158, 11, 0.3)' },
   };
   
-  const style = modeStyles[mode] || modeStyles.std;
+  const style = modeStyles[mode?.toLowerCase()] || modeStyles.std;
   
   return (
     <span style={{
@@ -40,37 +28,35 @@ const ModeTag = ({ mode, count }) => {
       borderRadius: '4px',
       fontSize: '0.75rem',
       fontFamily: 'monospace',
-      border: `1px solid ${style.borderColor}`,
-      background: style.background,
-      color: style.color,
+      border: `1px solid ${style.bord}`,
+      background: style.bg,
+      color: style.col,
+      whiteSpace: 'nowrap',
+      display: 'inline-block',
+      marginRight: '4px'
     }}>
-      {count > 1 ? `${count}×` : ''}{mode.toUpperCase()}
+      {count > 1 ? `${count}×` : ''}{mode?.toUpperCase()}
     </span>
   );
 };
 
 const condenseSequence = (modes) => {
   if (!modes || modes.length === 0) return [];
-  
   const condensed = [];
   let current = { mode: modes[0], count: 1 };
-  
   for (let i = 1; i < modes.length; i++) {
-    if (modes[i] === current.mode) {
-      current.count++;
-    } else {
+    if (modes[i] === current.mode) current.count++;
+    else {
       condensed.push(current);
       current = { mode: modes[i], count: 1 };
     }
   }
   condensed.push(current);
-  
   return condensed;
 };
 
 const StintSequence = ({ modes }) => {
   const condensed = condenseSequence(modes);
-  
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
       {condensed.map((item, idx) => (
@@ -85,32 +71,57 @@ const StintSequence = ({ modes }) => {
   );
 };
 
-/**
- * StrategyComparisonTable Component
- * 
- * Props:
- *   - strategies: Array of strategy objects from computePlan().allCandidates
- *   - capacities: Object with { std, fs, efs } max laps per stint
- *   - selectedIndex: Currently selected strategy index (default: 0)
- *   - onSelectStrategy: Callback when a strategy row is clicked (receives index)
- *   - bestFuelSavingIndex: Index of best fuel-saving strategy (passed from parent)
- */
 const StrategyComparisonTable = ({ 
   strategies = [], 
-  capacities = { std: 0, fs: 0, efs: 0 },
   selectedIndex = 0,
   onSelectStrategy = null,
   bestFuelSavingIndex = null,
 }) => {
-  if (!strategies || strategies.length === 0) {
+  const { useMemo, useState } = React;
+  const [hoverIndex, setHoverIndex] = useState(null);
+  
+  // Logic to Filter, Sort and Limit strategies
+  const displayStrategies = useMemo(() => {
+    if (!strategies || strategies.length === 0) return [];
+    
+    // 1. Preserve Original Index
+    const withIndex = strategies.map((s, i) => ({ ...s, originalIndex: i }));
+    const standard = withIndex[0];
+    
+    // 2. Identify Best Fuel Save
+    let fsIndex = bestFuelSavingIndex;
+    if (fsIndex === null || fsIndex <= 0) {
+       fsIndex = withIndex.findIndex((s, i) => i > 0 && (s.fsCount > 0 || s.efsCount > 0));
+    }
+    const fuelSaver = (fsIndex > 0 && fsIndex < withIndex.length) ? withIndex[fsIndex] : null;
+
+    // 3. Filter Others
+    const others = withIndex.filter(s => 
+      s.originalIndex !== 0 && 
+      (!fuelSaver || s.originalIndex !== fuelSaver.originalIndex)
+    );
+    
+    // 4. Sort by Net Delta (High to Low = Fastest)
+    others.sort((a, b) => (b.netTimeDelta || 0) - (a.netTimeDelta || 0));
+
+    // 5. Construct List (Max 5)
+    const result = [standard];
+    if (fuelSaver) result.push(fuelSaver);
+    
+    const limit = 5;
+    const slotsLeft = limit - result.length;
+    if (slotsLeft > 0) result.push(...others.slice(0, slotsLeft));
+
+    return result;
+  }, [strategies, bestFuelSavingIndex]);
+
+  const handleRowClick = (originalIndex) => {
+    if (onSelectStrategy) onSelectStrategy(originalIndex);
+  };
+
+  if (!displayStrategies.length) {
     return (
-      <div style={{
-        background: 'var(--surface)',
-        borderRadius: '8px',
-        padding: '24px',
-        color: 'var(--text-muted)',
-        textAlign: 'center',
-      }}>
+      <div style={{ padding: '24px', color: 'var(--text-muted)', textAlign: 'center' }}>
         No strategies to compare
       </div>
     );
@@ -118,46 +129,18 @@ const StrategyComparisonTable = ({
 
   const standardStrategy = strategies[0];
   const standardPitStops = standardStrategy?.pitStops || 0;
-  const standardLaps = standardStrategy?.totalLaps || 0;
-
-  // Use passed bestFuelSavingIndex (single source of truth from parent)
-  const bestFuelSavingIdx = bestFuelSavingIndex !== null && bestFuelSavingIndex > 0
-    ? bestFuelSavingIndex
-    : strategies.findIndex((s, idx) => 
-        idx > 0 && (s.fsCount > 0 || s.efsCount > 0)
-      );
 
   return (
-    <div style={{
-      background: 'var(--surface)',
-      borderRadius: '8px',
-      overflow: 'hidden',
-      marginBottom: '24px',
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid var(--border)',
-      }}>
-        <h3 style={{
-          fontSize: '1.125rem',
-          fontWeight: 600,
-          color: '#fff',
-          margin: 0,
-          marginBottom: '4px',
-        }}>
+    <div style={{ background: 'var(--surface)', borderRadius: '8px', overflow: 'hidden', marginBottom: '24px' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#fff', margin: 0, marginBottom: '4px' }}>
           Strategy Comparison
         </h3>
-        <p style={{
-          fontSize: '0.875rem',
-          color: 'var(--text-muted)',
-          margin: 0,
-        }}>
-          Compare all available strategies and select one to view detailed stint plan below.
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: 0 }}>
+          Top 5 Recommended Strategies
         </p>
       </div>
 
-      {/* Table */}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ 
           width: '100%', 
@@ -166,162 +149,112 @@ const StrategyComparisonTable = ({
           fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
         }}>
           <thead>
-            <tr style={{
-              background: 'var(--surface-muted)',
-              color: 'var(--text-muted)',
-              fontSize: '0.75rem',
+            <tr style={{ 
+              background: 'var(--surface-muted)', 
+              color: 'var(--text-muted)', 
+              fontSize: '0.75rem', 
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
             }}>
-              <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 500 }}>Strategy</th>
-              <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 500 }}>Pits</th>
-              <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 500 }}>Laps</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 500 }}>Stint Sequence</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 500 }}>Track Time Lost</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 500 }}>Pit Time Saved</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 500 }}>Net Δ</th>
+              <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 500, minWidth: '180px' }}>Strategy</th>
+              <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 500, minWidth: '80px' }}>Pits</th>
+              <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 500, minWidth: '100px' }}>Laps</th>
+              <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 500, minWidth: '200px' }}>Stint Sequence</th>
+              <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 500, minWidth: '120px' }}>Track Time Lost</th>
+              <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 500, minWidth: '120px' }}>Pit Time Saved</th>
+              <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 500, minWidth: '100px' }}>Net Δ</th>
             </tr>
           </thead>
           <tbody>
-            {strategies.map((strategy, idx) => {
-              const isStandard = idx === 0;
-              const isBestFuelSaving = idx === bestFuelSavingIdx && bestFuelSavingIdx > 0;
-              const isSelected = idx === selectedIndex;
+            {displayStrategies.map((strategy, idx) => {
+              const originalIndex = strategy.originalIndex;
+              const isStandard = originalIndex === 0;
+              const isBestFuelSaveRow = !isStandard && idx === 1;
+              const isSelected = originalIndex === selectedIndex;
+              const isHovered = hoverIndex === originalIndex;
               const isPositiveNet = (strategy.netTimeDelta || 0) > 0;
-              const lapsDelta = strategy.totalLaps - standardLaps;
               
-              // Build row style - separate border from background
-              let rowStyle = {
-                transition: 'background-color 0.2s',
+              // Fractional Laps Logic: prefer decimalLaps if available, otherwise calculate
+              const rawLaps = strategy.decimalLaps ?? (strategy.totalLaps + (strategy.fractionalLaps || 0));
+              const displayLaps = rawLaps.toFixed(2);
+              
+              let strategyName = `Option ${idx + 1}`;
+              if (isStandard) strategyName = 'Standard';
+              else if (isBestFuelSaveRow) strategyName = 'Best Fuel Save';
+
+              // Dynamic Background for Selection & Hover
+              let bg = 'transparent';
+              if (isSelected) bg = 'rgba(255, 255, 255, 0.1)';
+              else if (isHovered) {
+                  if (isStandard) bg = 'rgba(59, 130, 246, 0.1)';
+                  else if (isBestFuelSaveRow) bg = 'rgba(52, 211, 153, 0.1)';
+                  else bg = 'rgba(255, 255, 255, 0.05)';
+              } else {
+                  if (isStandard) bg = 'rgba(59, 130, 246, 0.02)';
+                  else if (isBestFuelSaveRow) bg = 'rgba(52, 211, 153, 0.02)';
+              }
+
+              const rowStyle = {
                 cursor: onSelectStrategy ? 'pointer' : 'default',
                 borderBottom: '1px solid var(--border)',
+                background: bg,
+                transition: 'background 0.2s ease',
+                borderLeft: isStandard 
+                  ? '3px solid #3b82f6' 
+                  : (isBestFuelSaveRow ? '3px solid #34d399' : '3px solid transparent')
               };
-              
-              // LEFT BORDER: Always based on strategy type (matches card colors)
-              if (isStandard) {
-                rowStyle.borderLeft = '3px solid #3b82f6';  // Blue - matches Standard card
-              } else if (isBestFuelSaving) {
-                rowStyle.borderLeft = '3px solid #34d399';  // Green - matches Fuel-Saving card
-              } else {
-                rowStyle.borderLeft = '3px solid transparent';
-              }
-              
-              // BACKGROUND: Based on selection state
-              if (isSelected) {
-                rowStyle.background = 'rgba(255, 255, 255, 0.1)';  // Neutral selection highlight
-              } else if (isStandard) {
-                rowStyle.background = 'rgba(59, 130, 246, 0.05)';  // Subtle blue
-              } else if (isBestFuelSaving) {
-                rowStyle.background = 'rgba(52, 211, 153, 0.05)';  // Subtle green
-              } else {
-                rowStyle.background = 'transparent';
-              }
 
               return (
                 <tr 
-                  key={idx} 
+                  key={strategy.originalIndex}
                   style={rowStyle}
-                  onClick={() => onSelectStrategy && onSelectStrategy(idx)}
-                  onMouseEnter={(e) => {
-                    if (!isSelected && onSelectStrategy) {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      if (isStandard) {
-                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.05)';
-                      } else if (isBestFuelSaving) {
-                        e.currentTarget.style.background = 'rgba(52, 211, 153, 0.05)';
-                      } else {
-                        e.currentTarget.style.background = 'transparent';
-                      }
-                    } else {
-                      // Keep selection highlight on hover leave
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                    }
-                  }}
+                  onClick={() => handleRowClick(originalIndex)}
+                  onMouseEnter={() => setHoverIndex(originalIndex)}
+                  onMouseLeave={() => setHoverIndex(null)}
                 >
-                  {/* Strategy Name */}
-                  <td style={{ padding: '12px 16px', minWidth: '180px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '24px' }}>
-                      <span style={{ color: '#fff', fontWeight: 500, fontSize: '0.875rem' }}>
-                        {isStandard ? 'Standard' : (isBestFuelSaving && bestFuelSavingIdx > 0 ? 'Fuel-Saving' : `Option ${idx + 1}`)}
-                      </span>
-                      <div style={{ minWidth: '80px', display: 'flex', alignItems: 'center' }}>
-                        {isSelected && (
-                          <span style={{
-                            padding: '2px 6px',
-                            background: 'rgba(255, 255, 255, 0.2)',
-                            color: '#fff',
-                            fontSize: '0.75rem',
-                            borderRadius: '4px',
-                            fontWeight: 600,
-                          }}>
-                            Selected
-                          </span>
-                        )}
-                        {!isSelected && isBestFuelSaving && isPositiveNet && (
-                          <span style={{
-                            padding: '2px 6px',
-                            background: 'rgba(52, 211, 153, 0.2)',
-                            color: '#34d399',
-                            fontSize: '0.75rem',
-                            borderRadius: '4px',
-                          }}>
-                            Recommended
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Pits */}
-                  <td style={{ padding: '12px 16px', textAlign: 'center', minWidth: '80px' }}>
-                    <span style={{ color: '#fff', fontFamily: 'monospace', fontSize: '1rem' }}>
-                      {strategy.pitStops}
-                    </span>
-                    {!isStandard && strategy.pitStops < standardPitStops && (
-                      <span style={{ marginLeft: '4px', color: '#34d399', fontSize: '0.75rem' }}>
-                        (-{standardPitStops - strategy.pitStops})
-                      </span>
-                    )}
-                  </td>
-
-                  {/* Laps */}
-                  <td style={{ padding: '12px 16px', textAlign: 'center', minWidth: '100px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <div>
-                        <span style={{ color: '#fff', fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                          {strategy.totalLaps}
+                  <td style={{ padding: '12px 16px', fontWeight: 500, color: '#fff', minWidth: '180px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>{strategyName}</span>
+                      {isSelected && (
+                        <span style={{ 
+                          marginLeft: '8px', 
+                          fontSize: '0.7rem', 
+                          background: 'rgba(255,255,255,0.2)', 
+                          padding: '2px 6px', 
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                        }}>
+                          Selected
                         </span>
-                        {!isStandard && lapsDelta !== 0 && (
-                          <span style={{
-                            marginLeft: '4px',
-                            fontSize: '0.75rem',
-                            color: lapsDelta > 0 ? '#34d399' : '#f87171',
-                          }}>
-                            ({lapsDelta > 0 ? '+' : ''}{lapsDelta})
-                          </span>
-                        )}
-                      </div>
-                      <span style={{
-                        color: 'var(--text-muted)',
-                        fontSize: '0.75rem',
-                        fontFamily: 'monospace',
-                      }}>
-                        {strategy.fractionalLaps?.toFixed(2)}
-                      </span>
+                      )}
                     </div>
                   </td>
 
-                  {/* Stint Sequence */}
+                  <td style={{ padding: '12px 16px', textAlign: 'center', minWidth: '80px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ color: '#fff', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                        {strategy.pitStops}
+                      </span>
+                      {!isStandard && strategy.pitStops < standardPitStops && (
+                        <span style={{ color: '#34d399', fontSize: '0.75rem', marginTop: '2px' }}>
+                          (-{standardPitStops - strategy.pitStops})
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  <td style={{ padding: '12px 16px', textAlign: 'center', minWidth: '100px' }}>
+                    <span style={{ color: '#fff', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                      {displayLaps}
+                    </span>
+                  </td>
+
                   <td style={{ padding: '12px 16px', textAlign: 'left', minWidth: '200px' }}>
                     <StintSequence modes={strategy.stintModes || []} />
                   </td>
 
-                  {/* Track Time Lost */}
-                  <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '120px', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                  {/* Track Time Lost Column */}
+                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', fontSize: '0.875rem', minWidth: '120px' }}>
                     {isStandard ? (
                       <span style={{ color: 'var(--text-muted)' }}>-</span>
                     ) : (
@@ -331,8 +264,8 @@ const StrategyComparisonTable = ({
                     )}
                   </td>
 
-                  {/* Pit Time Saved */}
-                  <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '120px', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                  {/* Pit Time Saved Column */}
+                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', fontSize: '0.875rem', minWidth: '120px' }}>
                     {isStandard ? (
                       <span style={{ color: 'var(--text-muted)' }}>-</span>
                     ) : (
@@ -342,58 +275,24 @@ const StrategyComparisonTable = ({
                     )}
                   </td>
 
-                  {/* Net Delta */}
-                  <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '100px' }}>
-                    {isStandard ? (
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.875rem' }}>baseline</span>
-                    ) : (
-                      <span style={{
-                        fontFamily: 'monospace',
-                        fontWeight: 700,
-                        fontSize: '0.875rem',
-                        color: isPositiveNet ? '#34d399' : '#f87171',
-                      }}>
-                        {formatTime(strategy.netTimeDelta || 0)}
-                      </span>
-                    )}
+                  <td style={{ 
+                    padding: '12px 16px', 
+                    textAlign: 'right', 
+                    fontFamily: 'monospace', 
+                    fontWeight: 700, 
+                    fontSize: '0.875rem',
+                    minWidth: '100px',
+                    color: isStandard 
+                      ? 'var(--text-muted)' 
+                      : (isPositiveNet ? '#34d399' : '#f87171'),
+                  }}>
+                    {isStandard ? 'baseline' : formatTime(strategy.netTimeDelta || 0)}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-      </div>
-
-      {/* Legend */}
-      <div style={{
-        padding: '12px 16px',
-        borderTop: '1px solid var(--border)',
-        background: 'var(--surface-muted)',
-      }}>
-        <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '16px',
-          fontSize: '0.75rem',
-          color: 'var(--text-muted)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ModeTag mode="std" count={1} />
-            <span>Standard</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ModeTag mode="fs" count={1} />
-            <span>Fuel saving</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ModeTag mode="efs" count={1} />
-            <span>Extra fuel saving</span>
-          </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span><span style={{ color: '#34d399' }}>Green</span> = faster</span>
-            <span><span style={{ color: '#f87171' }}>Red</span> = slower</span>
-          </div>
-        </div>
       </div>
     </div>
   );
