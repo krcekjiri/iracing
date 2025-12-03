@@ -174,10 +174,17 @@ const StrategyComparisonTable = ({
               const isHovered = hoverIndex === originalIndex;
               const isPositiveNet = (strategy.netTimeDelta || 0) > 0;
               
-              // Fractional Laps Logic: prefer decimalLaps if available, otherwise calculate
-              const rawLaps = strategy.decimalLaps ?? (strategy.totalLaps + (strategy.fractionalLaps || 0));
-              const displayLaps = rawLaps.toFixed(2);
+              // --- FIX 1: Laps Calculation ---
+              // Previously: strategy.totalLaps + strategy.fractionalLaps (which doubled the count).
+              // Now: Priority to decimal/fractional, fallback to total integer.
+              const rawLaps = strategy.decimalLaps ?? strategy.fractionalLaps ?? strategy.totalLaps;
+              const displayLaps = rawLaps ? rawLaps.toFixed(2) : '-';
               
+              // --- FIX 2: Track Time Lost Property Name ---
+              // Logic file uses 'lapTimeCost', but UI was looking for 'lapTimeLoss'.
+              // Added fallback check.
+              const trackTimeLost = strategy.lapTimeLoss || strategy.lapTimeCost || 0;
+
               let strategyName = `Option ${idx + 1}`;
               if (isStandard) strategyName = 'Standard';
               else if (isBestFuelSaveRow) strategyName = 'Best Fuel Save';
@@ -253,13 +260,13 @@ const StrategyComparisonTable = ({
                     <StintSequence modes={strategy.stintModes || []} />
                   </td>
 
-                  {/* Track Time Lost Column */}
+                  {/* Track Time Lost Column - Corrected */}
                   <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', fontSize: '0.875rem', minWidth: '120px' }}>
                     {isStandard ? (
                       <span style={{ color: 'var(--text-muted)' }}>-</span>
                     ) : (
                       <span style={{ color: '#f87171' }}>
-                        {strategy.lapTimeLoss > 0 ? `-${strategy.lapTimeLoss.toFixed(1)}s` : '-'}
+                        {trackTimeLost > 0 ? `-${trackTimeLost.toFixed(1)}s` : '-'}
                       </span>
                     )}
                   </td>
