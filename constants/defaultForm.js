@@ -13,4 +13,5 @@ const defaultForm = {
   pitLaneDeltaSeconds: 27,
   minLapsPerStint: '',
   maxLapsPerStint: '',
+  splashThresholdRatio: 0.61,  // Minimum efficient stint ratio (25s tire / 41.1s refuel)
 };
