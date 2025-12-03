@@ -970,8 +970,9 @@ input[type="number"]::-webkit-outer-spin-button {
 .pit-stop-connector {
   display: flex;
   align-items: center;
-  padding: 4px 0 4px 28px;
+  padding: 12px 0 12px 28px;
   position: relative;
+  margin: 8px 0;
 }
 
 .pit-stop-line {

@@ -251,7 +251,7 @@ const StrategyTab = ({
     <div className="tab-content">
       <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
         <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          View calculated strategy plans for Standard and Fuel-Saving modes. Compare total laps, pit stops, and race times. Use the detailed stint planner to refine individual stints.
+          Compare strategy options and select one to view detailed stint plan. Click strategy cards or rows in the comparison table to see detailed breakdown.
         </p>
       </div>
 

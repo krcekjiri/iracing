@@ -96,29 +96,44 @@ const StintCard = ({ stint, isLast }) => {
           </div>
         </div>
 
-        {/* Fuel Stats - Start, End, Target */}
-        <div className="stint-fuel-stats">
-          <div className="fuel-stat">
-            <div className="fuel-stat-label">Start</div>
-            <div className="fuel-stat-value">
-              {roundTo(stint.fuelAtStart || 0, 1)}
-              <span className="fuel-stat-unit">L</span>
+        {/* Fuel Stats - Compact layout: Laps interval + Start/End/Target in one row */}
+        <div className="stint-fuel-stats" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '8px',
+          marginTop: '8px',
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '16px',
+            flexWrap: 'wrap',
+          }}>
+            <div className="fuel-stat" style={{ flex: '1 1 auto', minWidth: '100px' }}>
+              <div className="fuel-stat-label">Start Fuel</div>
+              <div className="fuel-stat-value" style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                {roundTo(stint.fuelAtStart || 0, 1)}
+                <span className="fuel-stat-unit" style={{ marginLeft: '4px' }}>L</span>
+              </div>
             </div>
-          </div>
-
-          <div className="fuel-stat">
-            <div className="fuel-stat-label">End</div>
-            <div className="fuel-stat-value">
-              {roundTo(stint.fuelLeft || 0, 2)}
-              <span className="fuel-stat-unit">L</span>
+            <div className="fuel-stat" style={{ flex: '1 1 auto', minWidth: '100px' }}>
+              <div className="fuel-stat-label">End Fuel</div>
+              <div className="fuel-stat-value" style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                {roundTo(stint.fuelLeft || 0, 2)}
+                <span className="fuel-stat-unit" style={{ marginLeft: '4px' }}>L</span>
+              </div>
             </div>
-          </div>
-
-          <div className="fuel-stat">
-            <div className="fuel-stat-label">Target</div>
-            <div className="fuel-stat-value fuel-stat-target" style={{ color: config.accentColor }}>
-              {roundTo(stint.fuelTarget || 0, 2)}
-              <span className="fuel-stat-unit"> L/lap</span>
+            <div className="fuel-stat" style={{ flex: '1 1 auto', minWidth: '100px' }}>
+              <div className="fuel-stat-label">Fuel Target</div>
+              <div className="fuel-stat-value fuel-stat-target" style={{ 
+                color: config.accentColor,
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '4px',
+              }}>
+                {roundTo(stint.fuelTarget || 0, 2)}
+                <span className="fuel-stat-unit" style={{ marginLeft: '4px' }}>L/lap</span>
+              </div>
             </div>
           </div>
         </div>

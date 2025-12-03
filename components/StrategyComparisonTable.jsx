@@ -153,7 +153,7 @@ const StrategyComparisonTable = ({
           color: 'var(--text-muted)',
           margin: 0,
         }}>
-          Max laps per stint: STD {capacities.std} • FS {capacities.fs} • EFS {capacities.efs}
+          Compare all available strategies and select one to view detailed stint plan below.
         </p>
       </div>
 

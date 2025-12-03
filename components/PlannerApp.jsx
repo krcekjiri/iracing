@@ -304,11 +304,28 @@ const PlannerApp = () => {
       : 0;
 
   const handleInput = (field) => (event) => {
-    const { value } = event.target;
-    setForm((prev) => ({
-      ...prev,
-      [field]: value === '' ? '' : value,
-    }));
+    const { value, type } = event.target;
+    // For number inputs, handle empty values and invalid numbers more gracefully
+    if (type === 'number') {
+      const numValue = parseFloat(value);
+      if (value === '' || isNaN(numValue)) {
+        // Allow empty for intermediate typing, but use 0 as fallback for calculations
+        setForm((prev) => ({
+          ...prev,
+          [field]: value === '' ? '' : 0,
+        }));
+      } else {
+        setForm((prev) => ({
+          ...prev,
+          [field]: numValue,
+        }));
+      }
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        [field]: value === '' ? '' : value,
+      }));
+    }
   };
 
   const raceStartGMT = useMemo(() => {
@@ -442,7 +459,7 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Configure race parameters, fuel consumption, and pit stop settings. These values are used to calculate optimal strategy and stint planning.
+              Configure race duration, session timing, fuel parameters, and strategy mode settings. These values are used to calculate optimal strategy and stint planning.
             </p>
           </div>
           <div className="inputs-grid">
@@ -457,6 +474,89 @@ const PlannerApp = () => {
             helpText="Scheduled race length from the event info. Determines total laps when combined with lap time."
           />
           <InputField
+            label="Session Start (GMT)"
+            type="time"
+            value={raceStartGMTTime}
+            onChange={(e) => setRaceStartGMTTime(e.target.value)}
+            step="1"
+            helpText="The time when the session starts in GMT/UTC (HH:MM:SS)."
+          />
+          <InputField
+            label="Session Start (Game)"
+            type="time"
+            value={raceStartGameTime}
+            onChange={(e) => setRaceStartGameTime(e.target.value)}
+            step="1"
+            helpText="The time when the session starts in the game/simulator (HH:MM:SS)."
+          />
+          <div>
+            <label className="field-label" style={{ fontSize: '0.75rem', marginBottom: 2, display: 'block' }}>
+              Delay to First Stint
+            </label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <div className="toggle-group">
+                <button
+                  className={delayInputMode === 'manual' ? 'active' : ''}
+                  onClick={() => setDelayInputMode('manual')}
+                  style={{ fontSize: '0.75rem', padding: '4px 12px' }}
+                >
+                  Manual
+                </button>
+                <button
+                  className={delayInputMode === 'log' ? 'active' : ''}
+                  onClick={() => setDelayInputMode('log')}
+                  style={{ fontSize: '0.75rem', padding: '4px 12px' }}
+                >
+                  Log
+                </button>
+              </div>
+            </div>
+            {delayInputMode === 'manual' ? (
+              <input
+                type="text"
+                placeholder="MM:SS"
+                value={delayTime}
+                onChange={(e) => setDelayTime(e.target.value)}
+                style={{ width: '100%', padding: '4px 6px', fontSize: '0.75rem' }}
+              />
+            ) : (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  onClick={() => {
+                    if (raceStartGMT) {
+                      const now = new Date();
+                      const gmtTime = parseTimeOnly(raceStartGMTTime);
+                      if (gmtTime) {
+                        const gmtDate = new Date();
+                        gmtDate.setHours(gmtTime.hours, gmtTime.minutes, gmtTime.seconds || 0, 0);
+                        const diffMs = now.getTime() - gmtDate.getTime();
+                        if (diffMs > 0) {
+                          const diffMins = Math.floor(diffMs / 60000);
+                          const diffSecs = Math.floor((diffMs % 60000) / 1000);
+                          setDelayTime(`${diffMins}:${diffSecs.toString().padStart(2, '0')}`);
+                        }
+                      }
+                    }
+                  }}
+                  className="secondary-button"
+                  style={{ fontSize: '0.75rem', padding: '4px 12px' }}
+                >
+                  Log Now
+                </button>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {delayTime || 'Not logged'}
+                </span>
+              </div>
+            )}
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>
+              Delay between the start of the session and the start of the first stint (MM:SS format). Can include practice, quali, formation lap.
+            </p>
+          </div>
+        </div>
+
+        <div className="card">
+          <SectionHeading title="Fuel and Pit Parameters" />
+          <InputField
             label="Tank Capacity"
             suffix="L"
             type="number"
@@ -468,7 +568,7 @@ const PlannerApp = () => {
             label="Fuel BoP"
             suffix="%"
             type="number"
-            value={form.fuelBoP}
+            value={form.fuelBoP || 0}
             onChange={handleInput('fuelBoP')}
             step="0.01"
             helpText="Balance of Performance adjustment. Percentage reduction to fuel tank capacity (e.g., 0.25% = 0.25). Applied as tank capacity × (1 - BoP/100)."
@@ -503,6 +603,17 @@ const PlannerApp = () => {
 
         <div className="card">
           <SectionHeading title="Strategy Modes" />
+          <div style={{ 
+            marginBottom: 16, 
+            padding: '10px 12px', 
+            background: 'rgba(56, 189, 248, 0.08)', 
+            borderRadius: 6, 
+            border: '1px solid rgba(56, 189, 248, 0.15)',
+            fontSize: '0.8rem',
+            color: 'var(--text-muted)',
+          }}>
+            💡 Tip: Refine your strategy modes in the <strong style={{ color: '#38bdf8' }}>Stint Model</strong> tab to fine-tune lap times and fuel consumption for each stint.
+          </div>
           <div className="input-row">
             <InputField
               label="Standard Lap Time"
@@ -581,7 +692,7 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Assign drivers to stints, log actual lap counts and end times during the race. Compare planned vs. actual performance with visual indicators and the plan vs. reality graph.
+              Assign drivers to stints and log actual lap counts and end times during the race. View the complete schedule with timezone conversions and compare planned vs. actual performance.
             </p>
           </div>
           <div className="card">
