@@ -307,18 +307,35 @@ const PlannerApp = () => {
     const { value, type } = event.target;
     // For number inputs, handle empty values and invalid numbers more gracefully
     if (type === 'number') {
-      const numValue = parseFloat(value);
-      if (value === '' || isNaN(numValue)) {
-        // Allow empty for intermediate typing, but use 0 as fallback for calculations
-        setForm((prev) => ({
-          ...prev,
-          [field]: value === '' ? '' : 0,
-        }));
+      // For race duration specifically, always ensure it's a valid number to prevent app breakage
+      if (field === 'raceDurationMinutes') {
+        const numValue = parseFloat(value);
+        if (value === '' || isNaN(numValue) || numValue <= 0) {
+          // Use a safe default (1 minute) instead of 0 or empty to prevent computePlan errors
+          setForm((prev) => ({
+            ...prev,
+            [field]: value === '' ? 1 : (isNaN(numValue) ? 1 : Math.max(1, numValue)),
+          }));
+        } else {
+          setForm((prev) => ({
+            ...prev,
+            [field]: numValue,
+          }));
+        }
       } else {
-        setForm((prev) => ({
-          ...prev,
-          [field]: numValue,
-        }));
+        const numValue = parseFloat(value);
+        if (value === '' || isNaN(numValue)) {
+          // Allow empty for intermediate typing, but use 0 as fallback for calculations
+          setForm((prev) => ({
+            ...prev,
+            [field]: value === '' ? '' : 0,
+          }));
+        } else {
+          setForm((prev) => ({
+            ...prev,
+            [field]: numValue,
+          }));
+        }
       }
     } else {
       setForm((prev) => ({
@@ -433,7 +450,7 @@ const PlannerApp = () => {
           className={activeTab === 'schedule' ? 'active' : ''}
           onClick={() => setActiveTab('schedule')}
         >
-          Schedule
+          Schedule <span style={{ fontSize: '0.7rem', opacity: 0.7, marginLeft: '4px' }}>(WIP)</span>
         </button>
         <button
           className={activeTab === 'lap-times' ? 'active' : ''}
@@ -603,17 +620,6 @@ const PlannerApp = () => {
 
         <div className="card">
           <SectionHeading title="Strategy Modes" />
-          <div style={{ 
-            marginBottom: 16, 
-            padding: '10px 12px', 
-            background: 'rgba(56, 189, 248, 0.08)', 
-            borderRadius: 6, 
-            border: '1px solid rgba(56, 189, 248, 0.15)',
-            fontSize: '0.8rem',
-            color: 'var(--text-muted)',
-          }}>
-            💡 Tip: Refine your strategy modes in the <strong style={{ color: '#38bdf8' }}>Stint Model</strong> tab to fine-tune lap times and fuel consumption for each stint.
-          </div>
           <div className="input-row">
             <InputField
               label="Standard Lap Time"
@@ -668,6 +674,17 @@ const PlannerApp = () => {
               helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
             />
           </div>
+          <div style={{ 
+            marginTop: 16, 
+            padding: '10px 12px', 
+            background: 'rgba(56, 189, 248, 0.08)', 
+            borderRadius: 6, 
+            border: '1px solid rgba(56, 189, 248, 0.15)',
+            fontSize: '0.8rem',
+            color: 'var(--text-muted)',
+          }}>
+            💡 Fine-tune lap times and fuel consumption for each stint in <strong style={{ color: '#38bdf8' }}>Stint Model</strong> tab.
+          </div>
         </div>
 
           </div>
@@ -703,97 +720,6 @@ const PlannerApp = () => {
         <div className="inputs-grid" style={{ marginTop: 20 }}>
           <div className="card">
             <DriverManager drivers={drivers} onDriversChange={setDrivers} />
-          </div>
-          <div className="card">
-            <SectionHeading title="Session Start Times" />
-            <InputField
-              label="Session Start (GMT)"
-              type="time"
-              value={raceStartGMTTime}
-              onChange={(e) => setRaceStartGMTTime(e.target.value)}
-              step="1"
-              helpText="The time when the session starts in GMT/UTC (HH:MM:SS)."
-            />
-            <InputField
-              label="Session Start (Game)"
-              type="time"
-              value={raceStartGameTime}
-              onChange={(e) => setRaceStartGameTime(e.target.value)}
-              step="1"
-              helpText="The time when the session starts in the game/simulator (HH:MM:SS)."
-            />
-            <div>
-              <label className="field-label" style={{ fontSize: '0.75rem', marginBottom: 2, display: 'block' }}>
-                Delay to First Stint
-              </label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                <div className="toggle-group">
-                  <button
-                    className={delayInputMode === 'manual' ? 'active' : ''}
-                    onClick={() => setDelayInputMode('manual')}
-                    style={{ fontSize: '0.75rem', padding: '4px 12px' }}
-                  >
-                    Manual
-                  </button>
-                  <button
-                    className={delayInputMode === 'log' ? 'active' : ''}
-                    onClick={() => setDelayInputMode('log')}
-                    style={{ fontSize: '0.75rem', padding: '4px 12px' }}
-                  >
-                    Log
-                  </button>
-                </div>
-              </div>
-              {delayInputMode === 'manual' ? (
-                <input
-                  type="text"
-                  placeholder="MM:SS"
-                  value={delayTime}
-                  onChange={(e) => setDelayTime(e.target.value)}
-                  style={{ width: '100%', padding: '4px 6px', fontSize: '0.75rem' }}
-                />
-              ) : (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button
-                    onClick={() => {
-                      if (raceStartGMT) {
-                        const now = new Date();
-                        const diffMs = now.getTime() - raceStartGMT.getTime();
-                        const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));
-                        const minutes = Math.floor(diffSeconds / 60);
-                        const seconds = diffSeconds % 60;
-                        setDelayTime(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
-                      }
-                    }}
-                    style={{
-                      padding: '6px 12px',
-                      background: 'var(--accent)',
-                      color: '#071321',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem',
-                      fontWeight: 500,
-                    }}
-                    disabled={!raceStartGMT}
-                    title="Log current timestamp and calculate delay from Session Start (GMT)"
-                  >
-                    Log Timestamp
-                  </button>
-                  {delayTime && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Delay: {delayTime}
-                    </span>
-                  )}
-                </div>
-              )}
-              <div className="stat-label" style={{ marginTop: 4, fontSize: '0.7rem' }}>
-                {delayInputMode === 'manual' 
-                  ? 'Delay between session start and green flag (MM:SS format).'
-                  : 'Click "Log Timestamp" to capture current time and calculate delay from Session Start (GMT).'
-                }
-              </div>
-            </div>
           </div>
         </div>
         {!result.errors?.length && enhancedStintPlan.length > 0 ? (
