@@ -1,4 +1,5 @@
 // ==================== STRATEGY COMPARISON TABLE ====================
+// Updated with selection support
 
 const formatTime = (seconds) => {
   if (seconds === 0) return '-';
@@ -48,7 +49,6 @@ const ModeTag = ({ mode, count }) => {
   );
 };
 
-// Condense stint sequence: ['std','std','std','fs','fs'] → [{mode:'std',count:3}, {mode:'fs',count:2}]
 const condenseSequence = (modes) => {
   if (!modes || modes.length === 0) return [];
   
@@ -74,18 +74,32 @@ const StintSequence = ({ modes }) => {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
       {condensed.map((item, idx) => (
-        <>
-          <ModeTag key={idx} mode={item.mode} count={item.count} />
+        <React.Fragment key={idx}>
+          <ModeTag mode={item.mode} count={item.count} />
           {idx < condensed.length - 1 && (
             <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>→</span>
           )}
-        </>
+        </React.Fragment>
       ))}
     </div>
   );
 };
 
-const StrategyComparisonTable = ({ strategies = [], capacities = { std: 0, fs: 0, efs: 0 } }) => {
+/**
+ * StrategyComparisonTable Component
+ * 
+ * Props:
+ *   - strategies: Array of strategy objects from computePlan().allCandidates
+ *   - capacities: Object with { std, fs, efs } max laps per stint
+ *   - selectedIndex: Currently selected strategy index (default: 0)
+ *   - onSelectStrategy: Callback when a strategy row is clicked (receives index)
+ */
+const StrategyComparisonTable = ({ 
+  strategies = [], 
+  capacities = { std: 0, fs: 0, efs: 0 },
+  selectedIndex = 0,
+  onSelectStrategy = null,
+}) => {
   if (!strategies || strategies.length === 0) {
     return (
       <div style={{
@@ -100,7 +114,6 @@ const StrategyComparisonTable = ({ strategies = [], capacities = { std: 0, fs: 0
     );
   }
 
-  // Derive standard strategy from first strategy (always standard)
   const standardStrategy = strategies[0];
   const standardPitStops = standardStrategy?.pitStops || 0;
   const standardLaps = standardStrategy?.totalLaps || 0;
@@ -137,12 +150,17 @@ const StrategyComparisonTable = ({ strategies = [], capacities = { std: 0, fs: 0
           margin: 0,
         }}>
           Max laps per stint: STD {capacities.std} • FS {capacities.fs} • EFS {capacities.efs}
+          {onSelectStrategy && (
+            <span style={{ marginLeft: '12px', fontStyle: 'italic' }}>
+              • Click a row to select
+            </span>
+          )}
         </p>
       </div>
 
       {/* Table */}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', fontSize: '0.875rem' }}>
+        <table style={{ width: '100%', fontSize: '0.875rem', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{
               background: 'var(--surface-muted)',
@@ -164,14 +182,22 @@ const StrategyComparisonTable = ({ strategies = [], capacities = { std: 0, fs: 0
             {strategies.map((strategy, idx) => {
               const isStandard = idx === 0;
               const isBestFuelSaving = idx === bestFuelSavingIdx;
+              const isSelected = idx === selectedIndex;
               const isPositiveNet = (strategy.netTimeDelta || 0) > 0;
               const lapsDelta = strategy.totalLaps - standardLaps;
               
+              // Build row style based on selection state
               let rowStyle = {
                 transition: 'background-color 0.2s',
+                cursor: onSelectStrategy ? 'pointer' : 'default',
+                borderBottom: '1px solid var(--border)',
               };
               
-              if (isStandard) {
+              // Selection takes priority over other highlights
+              if (isSelected) {
+                rowStyle.background = 'rgba(52, 211, 153, 0.15)';
+                rowStyle.borderLeft = '3px solid #34d399';
+              } else if (isStandard) {
                 rowStyle.background = 'rgba(59, 130, 246, 0.05)';
                 rowStyle.borderLeft = '2px solid #3b82f6';
               } else if (isBestFuelSaving) {
@@ -185,14 +211,21 @@ const StrategyComparisonTable = ({ strategies = [], capacities = { std: 0, fs: 0
                 <tr 
                   key={idx} 
                   style={rowStyle}
+                  onClick={() => onSelectStrategy && onSelectStrategy(idx)}
                   onMouseEnter={(e) => {
-                    if (!isStandard && !isBestFuelSaving) {
-                      e.currentTarget.style.background = 'var(--surface-muted)';
+                    if (!isSelected && onSelectStrategy) {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isStandard && !isBestFuelSaving) {
-                      e.currentTarget.style.background = 'transparent';
+                    if (!isSelected) {
+                      if (isStandard) {
+                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.05)';
+                      } else if (isBestFuelSaving) {
+                        e.currentTarget.style.background = 'rgba(52, 211, 153, 0.05)';
+                      } else {
+                        e.currentTarget.style.background = 'transparent';
+                      }
                     }
                   }}
                 >
@@ -200,9 +233,21 @@ const StrategyComparisonTable = ({ strategies = [], capacities = { std: 0, fs: 0
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ color: '#fff', fontWeight: 500 }}>
-                        {isStandard ? 'Standard' : `Option ${idx}`}
+                        {isStandard ? 'Standard' : (isBestFuelSaving && bestFuelSavingIdx > 0 ? 'Fuel-Saving' : `Option ${idx}`)}
                       </span>
-                      {isBestFuelSaving && (
+                      {isSelected && (
+                        <span style={{
+                          padding: '2px 6px',
+                          background: 'rgba(52, 211, 153, 0.3)',
+                          color: '#34d399',
+                          fontSize: '0.75rem',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                        }}>
+                          Selected
+                        </span>
+                      )}
+                      {!isSelected && isBestFuelSaving && (
                         <span style={{
                           padding: '2px 6px',
                           background: 'rgba(52, 211, 153, 0.2)',
@@ -337,4 +382,3 @@ const StrategyComparisonTable = ({ strategies = [], capacities = { std: 0, fs: 0
     </div>
   );
 };
-
