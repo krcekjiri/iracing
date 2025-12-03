@@ -457,12 +457,12 @@ const PlannerApp = () => {
             helpText="Scheduled race length from the event info. Determines total laps when combined with lap time."
           />
           <InputField
-            label="Fuel Tank Capacity"
+            label="Tank Capacity"
             suffix="L"
             type="number"
             value={form.tankCapacity}
             onChange={handleInput('tankCapacity')}
-            helpText="Usable fuel from full to empty. Limits maximum stint length."
+            helpText="Base fuel tank capacity. The effective capacity is reduced by Fuel BoP percentage."
           />
           <InputField
             label="Fuel BoP"

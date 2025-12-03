@@ -476,6 +476,7 @@ const computePlan = (form, strategyMode = 'standard') => {
       fuelLeft: stint.fuelRemaining,
       fuelTarget: fuelTarget,
       fuelToAdd: stint.fuelToAdd || 0,
+      fuelAtStart: fuelAtStart,
       stintMode: stint.mode,
       strategyFuelPerLap: stint.fuelPerLapTarget,
       perStopLoss: stint.perStopLoss || 0,
