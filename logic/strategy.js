@@ -384,10 +384,9 @@ const computePlan = (config, strategyMode = 'standard') => {
   // Select strategy based on mode
   let selectedStrategy;
   if (strategyMode === 'fuel-saving') {
-    // Find best fuel-saving strategy with positive net time delta
     selectedStrategy = result.strategies.find(s => 
-      s.pitStops < result.standardPitStops && s.netTimeDelta > 0
-    ) || result.strategies[0]; // Fall back to standard if no beneficial fuel-saving exists
+      s.fsCount > 0 || s.efsCount > 0
+    ) || result.strategies[0];
   } else {
     // Standard mode - use first strategy (all STD)
     selectedStrategy = result.strategies[0];
