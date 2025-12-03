@@ -15,10 +15,10 @@ const StrategyTab = ({
   const allStrategies = standardResult?.allCandidates || [];
   const capacities = standardResult?.capacities || { std: 0, fs: 0, efs: 0 };
   
-  // Find best fuel-saving index (first one with positive net delta)
+  // Find best fuel-saving index (first one with FS/EFS, regardless of netTimeDelta)
   const bestFuelSavingIndex = allStrategies.length > 1 
-    ? allStrategies.findIndex(s => 
-        (s.fsCount > 0 || s.efsCount > 0) && s.netTimeDelta > 0
+    ? allStrategies.findIndex((s, idx) => 
+        idx > 0 && (s.fsCount > 0 || s.efsCount > 0)
       )
     : -1;
   
@@ -80,6 +80,50 @@ const StrategyTab = ({
     return 'standard';
   };
   
+  // Helper to create a result-like object from a strategy (for card display)
+  const createResultFromStrategy = (strategy, tankCapacity, reserveFuel, formationLapFuel) => {
+    const stintPlan = transformStrategyToStintPlan(strategy, tankCapacity, reserveFuel, formationLapFuel);
+    const totalRaceTimeWithStops = stintPlan.reduce((sum, stint) => sum + stint.stintDuration, 0) 
+      + (strategy.totalPitTime || 0);
+    const avgPerStopLoss = strategy.pitStops > 0 
+      ? (strategy.totalPitTime || 0) / strategy.pitStops 
+      : 0;
+    const totalFuelWithReserve = (strategy.totalFuelUsed || 0) + reserveFuel * (strategy.stintCount || 0);
+    
+    return {
+      ...strategy,
+      stintPlan: stintPlan,
+      totalLaps: strategy.totalLaps,
+      decimalLaps: strategy.fractionalLaps,
+      stintCount: strategy.stintCount,
+      pitStops: strategy.pitStops,
+      totalPitTime: strategy.totalPitTime,
+      totalRaceTimeWithStops: totalRaceTimeWithStops,
+      perStopLoss: avgPerStopLoss,
+      totalFuelNeeded: strategy.totalFuelUsed || 0,
+      totalFuelWithReserve: totalFuelWithReserve,
+      lapsPerStint: strategy.maxLapsPerStint,
+      errors: [],
+    };
+  };
+  
+  // Create transformed fuel-saving result once (if it exists) - more efficient
+  let fuelSavingCardResult = null;
+  if (bestFuelSavingIndex > 0 && allStrategies[bestFuelSavingIndex]) {
+    const baseTankCapacity = safeNumber(form.tankCapacity) || 106;
+    const fuelBoP = safeNumber(form.fuelBoP) || 0;
+    const tankCapacity = baseTankCapacity * (1 - fuelBoP / 100);
+    const reserveFuel = safeNumber(form.fuelReserveLiters) || 0;
+    const formationLapFuel = safeNumber(form.formationLapFuel) || 0;
+    
+    fuelSavingCardResult = createResultFromStrategy(
+      allStrategies[bestFuelSavingIndex],
+      tankCapacity,
+      reserveFuel,
+      formationLapFuel
+    );
+  }
+  
   // Determine which index is selected (comparison table takes priority)
   const activeIndex = selectedStrategyIndex !== null 
     ? selectedStrategyIndex 
@@ -116,10 +160,40 @@ const StrategyTab = ({
       errors: [],
     };
   } else {
-    // Fall back to card-based selection
-    activeResult = selectedStrategy === 'standard' ? standardResult : fuelSavingResult;
-    activeStintPlan = activeResult?.stintPlan || [];
-    activeStrategyMode = selectedStrategy;
+    // Fall back to card-based selection - use allCandidates consistently
+    if (selectedStrategy === 'standard') {
+      activeResult = standardResult;
+      activeStintPlan = standardResult?.stintPlan || [];
+      activeStrategyMode = 'standard';
+    } else if (selectedStrategy === 'fuel-saving' && bestFuelSavingIndex > 0) {
+      // Use allCandidates instead of fuelSavingResult
+      const selectedStrategyObj = allStrategies[bestFuelSavingIndex];
+      const baseTankCapacity = safeNumber(form.tankCapacity) || 106;
+      const fuelBoP = safeNumber(form.fuelBoP) || 0;
+      const tankCapacity = baseTankCapacity * (1 - fuelBoP / 100);
+      const reserveFuel = safeNumber(form.fuelReserveLiters) || 0;
+      const formationLapFuel = safeNumber(form.formationLapFuel) || 0;
+      
+      activeStintPlan = transformStrategyToStintPlan(
+        selectedStrategyObj,
+        tankCapacity,
+        reserveFuel,
+        formationLapFuel
+      );
+      activeStrategyMode = deriveStrategyMode(selectedStrategyObj);
+      activeResult = {
+        ...selectedStrategyObj,
+        stintPlan: activeStintPlan,
+        totalLaps: selectedStrategyObj.totalLaps,
+        decimalLaps: selectedStrategyObj.fractionalLaps,
+        errors: [],
+      };
+    } else {
+      // No valid fuel-saving strategy - fall back to standard
+      activeResult = standardResult;
+      activeStintPlan = standardResult?.stintPlan || [];
+      activeStrategyMode = 'standard';
+    }
   }
   
   // Handle card click - map to index
@@ -185,11 +259,23 @@ const StrategyTab = ({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 24 }}>
         {strategyConfigs && strategyConfigs.length > 0 ? (
           strategyConfigs
-            .filter(strategy => strategy && strategy.result)
+            .filter(strategy => {
+              // Hide fuel-saving card if no valid strategy found
+              if (strategy.key === 'fuel-saving' && bestFuelSavingIndex <= 0) {
+                return false;
+              }
+              return strategy && strategy.result;
+            })
             .map((strategy) => {
+              // Override fuel-saving card to use allCandidates data
+              let cardResult = strategy.result;
+              if (strategy.key === 'fuel-saving' && fuelSavingCardResult) {
+                cardResult = fuelSavingCardResult;
+              }
+              
               const isOptimal = strategyRecommendation(strategy.key);
-              const preciseLapsValue = Number(strategy.result.decimalLaps || strategy.result.totalLaps || 0);
-              const avgLaps = calculateAvgLaps(strategy.result);
+              const preciseLapsValue = Number(cardResult.decimalLaps || cardResult.totalLaps || 0);
+              const avgLaps = calculateAvgLaps(cardResult);
               
               // Determine if this card is selected based on index
               const cardIndex = strategy.key === 'standard' ? standardIndex : fuelSavingIndex;
@@ -250,9 +336,9 @@ const StrategyTab = ({
                     )}
                   </h3>
                   
-                  {strategy.result.errors?.length ? (
+                  {cardResult.errors?.length ? (
                     <div className="callout">
-                      {strategy.result.errors.map((err) => (
+                      {cardResult.errors.map((err) => (
                         <div key={err}>{err}</div>
                       ))}
                     </div>
@@ -265,29 +351,29 @@ const StrategyTab = ({
                       />
                       <Stat
                         label="Total Stints"
-                        value={`${strategy.result.stintCount} stints`}
+                        value={`${cardResult.stintCount} stints`}
                         detail={
-                          strategy.result.stintPlan && strategy.result.stintPlan.length > 0
+                          cardResult.stintPlan && cardResult.stintPlan.length > 0
                             ? (() => {
-                                const minLaps = Math.min(...strategy.result.stintPlan.map(s => s.laps));
-                                const maxLaps = Math.max(...strategy.result.stintPlan.map(s => s.laps));
+                                const minLaps = Math.min(...cardResult.stintPlan.map(s => s.laps));
+                                const maxLaps = Math.max(...cardResult.stintPlan.map(s => s.laps));
                                 const lapsDisplay = minLaps === maxLaps
                                   ? `~${minLaps} laps/stint`
                                   : `${minLaps}-${maxLaps} laps/stint`;
-                                return `${strategy.result.pitStops} stops • ${lapsDisplay}`;
+                                return `${cardResult.pitStops} stops • ${lapsDisplay}`;
                               })()
-                            : `${strategy.result.pitStops} stops • ~${strategy.result.lapsPerStint} laps/stint`
+                            : `${cardResult.pitStops} stops • ~${cardResult.lapsPerStint} laps/stint`
                         }
                       />
                       <Stat
                         label="Total Pit Time"
-                        value={`${roundTo(strategy.result.totalPitTime, 1)} s`}
-                        detail={formatPitStopTimes(strategy.result)}
+                        value={`${roundTo(cardResult.totalPitTime, 1)} s`}
+                        detail={formatPitStopTimes(cardResult)}
                       />
                       <Stat
                         label="Total Fuel Required"
-                        value={`${roundTo(strategy.result.totalFuelWithReserve, 1)} L`}
-                        detail={`${roundTo(strategy.result.totalFuelNeeded, 1)} L base + ${((strategy.result.stintCount || 0) * reservePerStint).toFixed(1)} L reserve`}
+                        value={`${roundTo(cardResult.totalFuelWithReserve, 1)} L`}
+                        detail={`${roundTo(cardResult.totalFuelNeeded, 1)} L base + ${((cardResult.stintCount || 0) * reservePerStint).toFixed(1)} L reserve`}
                       />
                       <Stat
                         label="Average Lap (no pits)"
@@ -318,6 +404,7 @@ const StrategyTab = ({
           capacities={capacities}
           selectedIndex={activeIndex}
           onSelectStrategy={handleStrategySelect}
+          bestFuelSavingIndex={bestFuelSavingIndex > 0 ? bestFuelSavingIndex : null}
         />
       )}
 

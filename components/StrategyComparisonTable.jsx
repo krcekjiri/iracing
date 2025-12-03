@@ -93,12 +93,14 @@ const StintSequence = ({ modes }) => {
  *   - capacities: Object with { std, fs, efs } max laps per stint
  *   - selectedIndex: Currently selected strategy index (default: 0)
  *   - onSelectStrategy: Callback when a strategy row is clicked (receives index)
+ *   - bestFuelSavingIndex: Index of best fuel-saving strategy (passed from parent)
  */
 const StrategyComparisonTable = ({ 
   strategies = [], 
   capacities = { std: 0, fs: 0, efs: 0 },
   selectedIndex = 0,
   onSelectStrategy = null,
+  bestFuelSavingIndex = null,
 }) => {
   if (!strategies || strategies.length === 0) {
     return (
@@ -118,10 +120,12 @@ const StrategyComparisonTable = ({
   const standardPitStops = standardStrategy?.pitStops || 0;
   const standardLaps = standardStrategy?.totalLaps || 0;
 
-  // Find best fuel-saving strategy (first one with positive net delta)
-  const bestFuelSavingIdx = strategies.findIndex(s => 
-    (s.fsCount > 0 || s.efsCount > 0) && s.netTimeDelta > 0
-  );
+  // Use passed bestFuelSavingIndex (single source of truth from parent)
+  const bestFuelSavingIdx = bestFuelSavingIndex !== null && bestFuelSavingIndex > 0
+    ? bestFuelSavingIndex
+    : strategies.findIndex((s, idx) => 
+        idx > 0 && (s.fsCount > 0 || s.efsCount > 0)
+      );
 
   return (
     <div style={{
@@ -181,30 +185,36 @@ const StrategyComparisonTable = ({
           <tbody>
             {strategies.map((strategy, idx) => {
               const isStandard = idx === 0;
-              const isBestFuelSaving = idx === bestFuelSavingIdx;
+              const isBestFuelSaving = idx === bestFuelSavingIdx && bestFuelSavingIdx > 0;
               const isSelected = idx === selectedIndex;
               const isPositiveNet = (strategy.netTimeDelta || 0) > 0;
               const lapsDelta = strategy.totalLaps - standardLaps;
               
-              // Build row style based on selection state
+              // Build row style - separate border from background
               let rowStyle = {
                 transition: 'background-color 0.2s',
                 cursor: onSelectStrategy ? 'pointer' : 'default',
                 borderBottom: '1px solid var(--border)',
               };
               
-              // Selection takes priority over other highlights
-              if (isSelected) {
-                rowStyle.background = 'rgba(52, 211, 153, 0.15)';
-                rowStyle.borderLeft = '3px solid #34d399';
-              } else if (isStandard) {
-                rowStyle.background = 'rgba(59, 130, 246, 0.05)';
-                rowStyle.borderLeft = '2px solid #3b82f6';
+              // LEFT BORDER: Always based on strategy type (matches card colors)
+              if (isStandard) {
+                rowStyle.borderLeft = '3px solid #3b82f6';  // Blue - matches Standard card
               } else if (isBestFuelSaving) {
-                rowStyle.background = 'rgba(52, 211, 153, 0.05)';
-                rowStyle.borderLeft = '2px solid #34d399';
+                rowStyle.borderLeft = '3px solid #34d399';  // Green - matches Fuel-Saving card
               } else {
-                rowStyle.borderLeft = '2px solid transparent';
+                rowStyle.borderLeft = '3px solid transparent';
+              }
+              
+              // BACKGROUND: Based on selection state
+              if (isSelected) {
+                rowStyle.background = 'rgba(255, 255, 255, 0.1)';  // Neutral selection highlight
+              } else if (isStandard) {
+                rowStyle.background = 'rgba(59, 130, 246, 0.05)';  // Subtle blue
+              } else if (isBestFuelSaving) {
+                rowStyle.background = 'rgba(52, 211, 153, 0.05)';  // Subtle green
+              } else {
+                rowStyle.background = 'transparent';
               }
 
               return (
@@ -226,6 +236,9 @@ const StrategyComparisonTable = ({
                       } else {
                         e.currentTarget.style.background = 'transparent';
                       }
+                    } else {
+                      // Keep selection highlight on hover leave
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
                     }
                   }}
                 >
@@ -238,8 +251,8 @@ const StrategyComparisonTable = ({
                       {isSelected && (
                         <span style={{
                           padding: '2px 6px',
-                          background: 'rgba(52, 211, 153, 0.3)',
-                          color: '#34d399',
+                          background: 'rgba(255, 255, 255, 0.2)',
+                          color: '#fff',
                           fontSize: '0.75rem',
                           borderRadius: '4px',
                           fontWeight: 600,
@@ -247,7 +260,7 @@ const StrategyComparisonTable = ({
                           Selected
                         </span>
                       )}
-                      {!isSelected && isBestFuelSaving && (
+                      {!isSelected && isBestFuelSaving && isPositiveNet && (
                         <span style={{
                           padding: '2px 6px',
                           background: 'rgba(52, 211, 153, 0.2)',
