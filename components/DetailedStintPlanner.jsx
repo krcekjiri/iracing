@@ -49,7 +49,7 @@ const DetailedStintPlanner = ({
 
 const StintCard = ({ stint, isLast }) => {
   const config = stintModeConfig[stint.stintMode] || stintModeConfig.standard;
-  const [isHovered, setIsHovered] = React.useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <div
