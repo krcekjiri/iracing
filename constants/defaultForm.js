@@ -1,6 +1,7 @@
 const defaultForm = {
   raceDurationMinutes: 180,
   tankCapacity: 106,
+  fuelBoP: 0,
   fuelReserveLiters: 0.3,
   formationLapFuel: 1.5,
   averageLapTime: '1:43.500',

@@ -144,11 +144,16 @@ const calculateStandardStrategy = (config) => {
     return { error: 'Invalid lap time or fuel consumption' };
   }
 
+  // Apply Fuel BoP reduction to tank capacity
+  const baseTankCapacity = safeNumber(config.tankCapacity) || 106;
+  const fuelBoP = safeNumber(config.fuelBoP) || 0;
+  const effectiveTankCapacity = baseTankCapacity * (1 - fuelBoP / 100);
+
   const result = simulateRace({
     raceDurationSeconds: config.raceDurationMinutes * 60,
     lapTimeSeconds,
     fuelPerLap,
-    tankCapacity: safeNumber(config.tankCapacity) || 106,
+    tankCapacity: effectiveTankCapacity,
     reserveFuel: safeNumber(config.fuelReserveLiters) || 0,
     formationLapFuel: safeNumber(config.formationLapFuel) || 0,
     pitLaneDelta: safeNumber(config.pitLaneDeltaSeconds) || 27,
@@ -305,7 +310,12 @@ const findOptimalStrategy = (config) => {
   const fuelSavingFuelPerLap = safeNumber(config.fuelSavingFuelPerLap);
   const extraFuelSavingLapTime = parseLapTime(config.extraFuelSavingLapTime);
   const extraFuelSavingFuelPerLap = safeNumber(config.extraFuelSavingFuelPerLap);
-  const tankCapacity = safeNumber(config.tankCapacity) || 106;
+  
+  // Apply Fuel BoP reduction to tank capacity
+  const baseTankCapacity = safeNumber(config.tankCapacity) || 106;
+  const fuelBoP = safeNumber(config.fuelBoP) || 0;
+  const tankCapacity = baseTankCapacity * (1 - fuelBoP / 100);
+  
   const reserveFuel = safeNumber(config.fuelReserveLiters) || 0;
   const formationLapFuel = safeNumber(config.formationLapFuel) || 0;
   const pitLaneDelta = safeNumber(config.pitLaneDeltaSeconds) || 27;
@@ -434,7 +444,11 @@ const computePlan = (form, strategyMode = 'standard') => {
     return { errors: [result.error] };
   }
 
-  const tankCapacity = safeNumber(form.tankCapacity) || 106;
+  // Apply Fuel BoP reduction to tank capacity for display calculations
+  const baseTankCapacity = safeNumber(form.tankCapacity) || 106;
+  const fuelBoP = safeNumber(form.fuelBoP) || 0;
+  const effectiveTankCapacity = baseTankCapacity * (1 - fuelBoP / 100);
+  
   const reserveLiters = safeNumber(form.fuelReserveLiters) || 0;
   const formationLapFuel = safeNumber(form.formationLapFuel) || 0;
 
@@ -443,10 +457,10 @@ const computePlan = (form, strategyMode = 'standard') => {
     const isFirstStint = idx === 0;
     const isLastStint = idx === result.stints.length - 1;
 
-    // Calculate fuel at start
+    // Calculate fuel at start (using effective tank capacity)
     const fuelAtStart = isFirstStint
-      ? tankCapacity - formationLapFuel
-      : tankCapacity;
+      ? effectiveTankCapacity - formationLapFuel
+      : effectiveTankCapacity;
 
     // Calculate fuel target
     const usableFuel = fuelAtStart - reserveLiters;

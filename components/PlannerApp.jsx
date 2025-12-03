@@ -457,12 +457,21 @@ const PlannerApp = () => {
             helpText="Scheduled race length from the event info. Determines total laps when combined with lap time."
           />
           <InputField
-            label="Tank Capacity"
+            label="Fuel Tank Capacity"
             suffix="L"
             type="number"
             value={form.tankCapacity}
             onChange={handleInput('tankCapacity')}
             helpText="Usable fuel from full to empty. Limits maximum stint length."
+          />
+          <InputField
+            label="Fuel BoP"
+            suffix="%"
+            type="number"
+            value={form.fuelBoP}
+            onChange={handleInput('fuelBoP')}
+            step="0.01"
+            helpText="Balance of Performance adjustment. Percentage reduction to fuel tank capacity (e.g., 0.25% = 0.25). Applied as tank capacity × (1 - BoP/100)."
           />
           <InputField
             label="Fuel Reserve"
