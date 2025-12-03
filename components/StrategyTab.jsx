@@ -39,11 +39,11 @@ const StrategyTab = ({
       .map(stint => stint.perStopLoss || 0)
       .filter(time => time > 0); // Filter out any zero/undefined values
     if (stopTimes.length === 0) return 'No stops';
-    // Always show individual times to see splash-and-dash optimization
+    // Always show individual times to see splash-and-dash optimization (rounded to whole numbers)
     if (stopTimes.length === 1) {
-      return `${roundTo(stopTimes[0], 1)}s`;
+      return `${Math.round(stopTimes[0])}s`;
     }
-    return stopTimes.map((time) => `${roundTo(time, 1)}s`).join(' + ');
+    return stopTimes.map((time) => `${Math.round(time)}s`).join(' + ');
   };
 
   return (
@@ -117,7 +117,7 @@ const StrategyTab = ({
                         detail={`${preciseLapsValue.toFixed(2)} laps exact`}
                       />
                       <Stat
-                        label="Stints & Stops"
+                        label="Total Stints"
                         value={`${strategy.result.stintCount} stints`}
                         detail={
                           strategy.result.stintPlan && strategy.result.stintPlan.length > 0
@@ -131,26 +131,6 @@ const StrategyTab = ({
                               })()
                             : `${strategy.result.pitStops} stops • ~${strategy.result.lapsPerStint} laps/stint`
                         }
-                        helpText={
-                          strategy.result.stintPlan && strategy.result.stintPlan.length > 0
-                            ? strategy.result.stintPlan.map((s) => {
-                                const modeLabel = s.stintMode === 'extra-fuel-saving' 
-                                  ? 'Extra Fuel-Saving ⚡' 
-                                  : s.stintMode === 'fuel-saving' 
-                                    ? 'Fuel-Saving' 
-                                    : 'Standard';
-                                const lapRange = s.startLap === s.endLap 
-                                  ? `Lap ${s.startLap}` 
-                                  : `Laps ${s.startLap}-${s.endLap}`;
-                                const fuelTarget = s.fuelTarget !== undefined 
-                                  ? `${s.fuelTarget.toFixed(2)} L/lap` 
-                                  : s.strategyFuelPerLap !== undefined 
-                                    ? `${s.strategyFuelPerLap.toFixed(2)} L/lap` 
-                                    : '';
-                                return `Stint ${s.id}: ${s.laps} lap${s.laps > 1 ? 's' : ''} (${lapRange}) - ${modeLabel}${fuelTarget ? ` - ${fuelTarget}` : ''}`;
-                              }).join('\n')
-                            : undefined
-                        }
                       />
                       <Stat
                         label="Total Pit Time"
@@ -158,17 +138,17 @@ const StrategyTab = ({
                         detail={formatPitStopTimes(strategy.result)}
                       />
                       <Stat
-                        label="Total Fuel Consumed"
+                        label="Total Fuel Required"
                         value={`${roundTo(strategy.result.totalFuelWithReserve, 1)} L`}
                         detail={`${roundTo(strategy.result.totalFuelNeeded, 1)} L base + ${((strategy.result.stintCount || 0) * reservePerStint).toFixed(1)} L reserve`}
                       />
                       <Stat
-                        label="Avg Lap (no pits)"
+                        label="Average Lap (no pits)"
                         value={avgLaps.withoutPits > 0 ? formatLapTime(avgLaps.withoutPits) : '--'}
                         detail="Average lap time excluding pit stops"
                       />
                       <Stat
-                        label="Avg Lap (with pits)"
+                        label="Average Lap (with pits)"
                         value={avgLaps.withPits > 0 ? formatLapTime(avgLaps.withPits) : '--'}
                         detail="Average lap time including pit stop time"
                       />
@@ -209,8 +189,6 @@ const StrategyTab = ({
             totalLaps={activeResult.totalLaps}
             strategyMode={selectedStrategy}
           />
-          
-          <StrategyGraph plan={activeResult.stintPlan} perStopLoss={activeResult.perStopLoss} />
         </div>
       ) : activeResult.errors?.length ? (
         <div className="card" style={{ padding: 24 }}>
