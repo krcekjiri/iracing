@@ -154,17 +154,17 @@ const StrategyComparisonTable = ({
           margin: 0,
         }}>
           Max laps per stint: STD {capacities.std} • FS {capacities.fs} • EFS {capacities.efs}
-          {onSelectStrategy && (
-            <span style={{ marginLeft: '12px', fontStyle: 'italic' }}>
-              • Click a row to select
-            </span>
-          )}
         </p>
       </div>
 
       {/* Table */}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', fontSize: '0.875rem', borderCollapse: 'collapse' }}>
+        <table style={{ 
+          width: '100%', 
+          fontSize: '0.875rem', 
+          borderCollapse: 'collapse',
+          fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+        }}>
           <thead>
             <tr style={{
               background: 'var(--surface-muted)',
@@ -243,40 +243,42 @@ const StrategyComparisonTable = ({
                   }}
                 >
                   {/* Strategy Name */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: '#fff', fontWeight: 500 }}>
-                        {isStandard ? 'Standard' : (isBestFuelSaving && bestFuelSavingIdx > 0 ? 'Fuel-Saving' : `Option ${idx}`)}
+                  <td style={{ padding: '12px 16px', minWidth: '180px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '24px' }}>
+                      <span style={{ color: '#fff', fontWeight: 500, fontSize: '0.875rem' }}>
+                        {isStandard ? 'Standard' : (isBestFuelSaving && bestFuelSavingIdx > 0 ? 'Fuel-Saving' : `Option ${idx + 1}`)}
                       </span>
-                      {isSelected && (
-                        <span style={{
-                          padding: '2px 6px',
-                          background: 'rgba(255, 255, 255, 0.2)',
-                          color: '#fff',
-                          fontSize: '0.75rem',
-                          borderRadius: '4px',
-                          fontWeight: 600,
-                        }}>
-                          Selected
-                        </span>
-                      )}
-                      {!isSelected && isBestFuelSaving && isPositiveNet && (
-                        <span style={{
-                          padding: '2px 6px',
-                          background: 'rgba(52, 211, 153, 0.2)',
-                          color: '#34d399',
-                          fontSize: '0.75rem',
-                          borderRadius: '4px',
-                        }}>
-                          Recommended
-                        </span>
-                      )}
+                      <div style={{ minWidth: '80px', display: 'flex', alignItems: 'center' }}>
+                        {isSelected && (
+                          <span style={{
+                            padding: '2px 6px',
+                            background: 'rgba(255, 255, 255, 0.2)',
+                            color: '#fff',
+                            fontSize: '0.75rem',
+                            borderRadius: '4px',
+                            fontWeight: 600,
+                          }}>
+                            Selected
+                          </span>
+                        )}
+                        {!isSelected && isBestFuelSaving && isPositiveNet && (
+                          <span style={{
+                            padding: '2px 6px',
+                            background: 'rgba(52, 211, 153, 0.2)',
+                            color: '#34d399',
+                            fontSize: '0.75rem',
+                            borderRadius: '4px',
+                          }}>
+                            Recommended
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
 
                   {/* Pits */}
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    <span style={{ color: '#fff', fontFamily: 'monospace', fontSize: '1.125rem' }}>
+                  <td style={{ padding: '12px 16px', textAlign: 'center', minWidth: '80px' }}>
+                    <span style={{ color: '#fff', fontFamily: 'monospace', fontSize: '1rem' }}>
                       {strategy.pitStops}
                     </span>
                     {!isStandard && strategy.pitStops < standardPitStops && (
@@ -287,10 +289,10 @@ const StrategyComparisonTable = ({
                   </td>
 
                   {/* Laps */}
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                  <td style={{ padding: '12px 16px', textAlign: 'center', minWidth: '100px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <div>
-                        <span style={{ color: '#fff', fontFamily: 'monospace' }}>
+                        <span style={{ color: '#fff', fontFamily: 'monospace', fontSize: '0.875rem' }}>
                           {strategy.totalLaps}
                         </span>
                         {!isStandard && lapsDelta !== 0 && (
@@ -314,12 +316,12 @@ const StrategyComparisonTable = ({
                   </td>
 
                   {/* Stint Sequence */}
-                  <td style={{ padding: '12px 16px' }}>
+                  <td style={{ padding: '12px 16px', textAlign: 'left', minWidth: '200px' }}>
                     <StintSequence modes={strategy.stintModes || []} />
                   </td>
 
                   {/* Track Time Lost */}
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace' }}>
+                  <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '120px', fontFamily: 'monospace', fontSize: '0.875rem' }}>
                     {isStandard ? (
                       <span style={{ color: 'var(--text-muted)' }}>-</span>
                     ) : (
@@ -330,7 +332,7 @@ const StrategyComparisonTable = ({
                   </td>
 
                   {/* Pit Time Saved */}
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace' }}>
+                  <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '120px', fontFamily: 'monospace', fontSize: '0.875rem' }}>
                     {isStandard ? (
                       <span style={{ color: 'var(--text-muted)' }}>-</span>
                     ) : (
@@ -341,13 +343,14 @@ const StrategyComparisonTable = ({
                   </td>
 
                   {/* Net Delta */}
-                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                  <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '100px' }}>
                     {isStandard ? (
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>baseline</span>
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.875rem' }}>baseline</span>
                     ) : (
                       <span style={{
                         fontFamily: 'monospace',
                         fontWeight: 700,
+                        fontSize: '0.875rem',
                         color: isPositiveNet ? '#34d399' : '#f87171',
                       }}>
                         {formatTime(strategy.netTimeDelta || 0)}
