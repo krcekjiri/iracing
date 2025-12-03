@@ -164,15 +164,17 @@ const StrategyTab = ({
         )}
       </div>
 
+      {/* Strategy Comparison Table */}
+      {standardResult?.allCandidates && standardResult.allCandidates.length > 1 && (
+        <StrategyComparisonTable 
+          strategies={standardResult.allCandidates}
+          capacities={standardResult.capacities}
+        />
+      )}
+
       {/* Detailed Stint Planner */}
       {!activeResult.errors?.length && activeResult.stintPlan?.length > 0 ? (
         <div className="card" style={{ padding: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Detailed Stint Planner - {selectedStrategy === 'standard' ? 'Standard' : 'Fuel-Saving'} Strategy</h3>
-            <span className="stat-label">
-              Fuel target capped at tank capacity ({form.tankCapacity || 0} L)
-            </span>
-          </div>
           
           {activeResult.minLapsWarning && (
             <div className="callout" style={{ marginBottom: 16 }}>

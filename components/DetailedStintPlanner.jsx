@@ -22,12 +22,20 @@ const DetailedStintPlanner = ({
 
   const totalLapsCount = plan.reduce((sum, s) => sum + s.laps, 0);
 
+  // Get strategy name for display
+  const strategyName = strategyMode === 'standard' ? 'Standard' : 'Fuel-Saving';
+
   return (
     <div className="enhanced-stint-planner">
       {/* Header */}
       <div className="stint-planner-header">
-        <h2 className="stint-planner-title">Stint Plan</h2>
-        <div className="stint-planner-subtitle">
+        <h2 className="stint-planner-title">Stint Plan - {strategyName}</h2>
+        <div className="stint-planner-subtitle" style={{
+          fontSize: '1rem',
+          fontWeight: 600,
+          color: '#fff',
+          marginTop: '8px',
+        }}>
           {plan.length} stints · {totalLapsCount} laps
         </div>
       </div>
