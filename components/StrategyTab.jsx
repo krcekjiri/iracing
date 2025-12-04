@@ -259,19 +259,16 @@ const StrategyTab = ({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 24 }}>
         {strategyConfigs && strategyConfigs.length > 0 ? (
           strategyConfigs
-            .filter(strategy => {
-              // Hide fuel-saving card if no valid strategy found
-              if (strategy.key === 'fuel-saving' && bestFuelSavingIndex <= 0) {
-                return false;
-              }
-              return strategy && strategy.result;
-            })
+            .filter(strategy => strategy && strategy.result)
             .map((strategy) => {
               // Override fuel-saving card to use allCandidates data
               let cardResult = strategy.result;
               if (strategy.key === 'fuel-saving' && fuelSavingCardResult) {
                 cardResult = fuelSavingCardResult;
               }
+              
+              // Check if fuel-saving strategy is not available
+              const hasNoFuelSavingStrategy = strategy.key === 'fuel-saving' && bestFuelSavingIndex <= 0;
               
               const isOptimal = strategyRecommendation(strategy.key);
               const preciseLapsValue = Number(cardResult.decimalLaps || cardResult.totalLaps || 0);
@@ -289,15 +286,16 @@ const StrategyTab = ({
                   style={{ 
                     borderTop: `4px solid ${strategy.color}`,
                     border: (isSelected || isCardSelected) ? `2px solid ${strategy.color}` : `1px solid var(--border)`,
-                    cursor: 'pointer',
+                    cursor: hasNoFuelSavingStrategy ? 'default' : 'pointer',
                     transition: 'all 0.2s ease',
                     transform: (isSelected || isCardSelected) ? 'scale(1.02)' : 'scale(1)',
                     boxShadow: (isSelected || isCardSelected) ? `0 8px 24px rgba(${strategy.color === '#1ea7ff' ? '30, 167, 255' : '16, 185, 129'}, 0.3)` : 'none',
                     position: 'relative',
+                    opacity: hasNoFuelSavingStrategy ? 0.7 : 1,
                   }}
-                  onClick={() => handleCardClick(strategy.key)}
+                  onClick={hasNoFuelSavingStrategy ? undefined : () => handleCardClick(strategy.key)}
                 >
-                  {(isSelected || isCardSelected) && (
+                  {(isSelected || isCardSelected) && !hasNoFuelSavingStrategy && (
                     <div style={{
                       position: 'absolute',
                       top: '8px',
@@ -314,7 +312,7 @@ const StrategyTab = ({
                   )}
                   <h3 style={{ marginBottom: 16, color: strategy.color, display: 'flex', alignItems: 'center', gap: 8 }}>
                     {strategy.name} Strategy
-                    {!strategy.result.errors?.length && isOptimal && (
+                    {!hasNoFuelSavingStrategy && !strategy.result.errors?.length && isOptimal && (
                       <span
                         style={{
                           display: 'inline-flex',
@@ -336,7 +334,20 @@ const StrategyTab = ({
                     )}
                   </h3>
                   
-                  {cardResult.errors?.length ? (
+                  {hasNoFuelSavingStrategy ? (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '200px',
+                      textAlign: 'center',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.95rem',
+                      padding: '20px',
+                    }}>
+                      No fuel-saving strategy needed. You can push like an animal!
+                    </div>
+                  ) : cardResult.errors?.length ? (
                     <div className="callout">
                       {cardResult.errors.map((err) => (
                         <div key={err}>{err}</div>
