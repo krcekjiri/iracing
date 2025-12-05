@@ -1064,13 +1064,18 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Model stint pace with physics. <strong style={{color: '#fff'}}>Standard Lap Time</strong> sets the baseline (Lap 4). The graph automatically calculates Laps 1-3 (Cold Tires), and Lap 5+ based on Fuel Burn vs. Tire Degradation.
+              Model stint pace with physics. <strong style={{color: '#fff'}}>Standard Lap Time</strong> sets the baseline (Lap 4). 
+              The graph automatically calculates Laps 1-3 (Cold Tires) and Lap 5+ (Fuel Burn vs. Tire Deg).
+              <br />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4, display: 'block' }}>
+                Note: This comparison uses the same number of laps for both strategies, even though fuel saving may allow completing one additional lap.
+              </span>
             </p>
           </div>
           <div className="card">
             <SectionHeading
               title="Stint Modelling"
-              helpText="Model lap times with physics (Tire warming, fuel burn, and degradation) and analyze the cost of fuel saving."
+              helpText="Model lap times with physics (Tire warming, fuel burn, and degradation) and calculate the ROI of fuel saving (Time lost vs. Range gained)."
             />
             {(() => {
               try {
@@ -1079,18 +1084,24 @@ const PlannerApp = () => {
                   
                   // Pull defaults from Setup tab or previous inputs
                   const defaultLaps = standardResult?.stintPlan?.[0]?.laps || 25;
+                  const defaultBaseFuel = parseFloat(form.fuelPerLap) || 3.0;
+                  const defaultSaving = (parseFloat(form.fuelPerLap) - parseFloat(form.fuelSavingFuelPerLap)) || 0.15;
                   
                   // State for Inputs
-                  const [baselineInput, setBaselineInput] = React.useState(stintModelling.standardLapTime || form.averageLapTime || '02:00.000');
-                  const [numLaps, setNumLaps] = React.useState(parseInt(stintModelling.standardLaps || defaultLaps) || 25);
+                  const [baselineInput, setBaselineInput] = useState(stintModelling.standardLapTime || form.averageLapTime || '02:00.000');
+                  const [numLaps, setNumLaps] = useState(parseInt(stintModelling.standardLaps || defaultLaps) || 25);
                   
                   // Physics Parameters
-                  const [fuelSaveOffset, setFuelSaveOffset] = React.useState(0.8); // Seconds slower for fuel saving
-                  const [fuelBurnFactor, setFuelBurnFactor] = React.useState(0.05); // Seconds gained per lap (lightening)
-                  const [tireDegFactor, setTireDegFactor] = React.useState(0.05);   // Seconds lost per lap (wear)
+                  const [fuelSaveOffset, setFuelSaveOffset] = useState(stintModelling.fuelSaveOffset ?? 0.8); // Seconds slower for fuel saving
+                  const [fuelBurnFactor, setFuelBurnFactor] = useState(stintModelling.fuelBurnFactor ?? 0.05); // Seconds gained per lap (lightening)
+                  const [tireDegFactor, setTireDegFactor] = useState(stintModelling.tireDegFactor ?? 0.05);   // Seconds lost per lap (wear)
+                  
+                  // Fuel Consumption Parameters (New - Decoupled from Setup)
+                  const [baseFuelConsumption, setBaseFuelConsumption] = useState(stintModelling.baseFuelConsumption ?? defaultBaseFuel);
+                  const [fuelSavingPerLap, setFuelSavingPerLap] = useState(stintModelling.fuelSavingPerLap ?? Math.max(0.01, defaultSaving));
 
                   // Helper to parse/format
-                  const baselineSeconds = React.useMemo(() => parseLapTime(baselineInput) || 120, [baselineInput]);
+                  const baselineSeconds = useMemo(() => parseLapTime(baselineInput) || 120, [baselineInput]);
 
                   // -- 2. PHYSICS MODEL --
                   
@@ -1120,20 +1131,20 @@ const PlannerApp = () => {
                   };
 
                   // Initial calculation
-                  const calculatedStandardTimes = React.useMemo(() => {
+                  const calculatedStandardTimes = useMemo(() => {
                     return generateStandardCurve(baselineSeconds, numLaps, fuelBurnFactor, tireDegFactor);
                   }, [baselineSeconds, numLaps, fuelBurnFactor, tireDegFactor]);
 
                   // State for the draggable points (initialized with calculated physics)
-                  const [standardLapTimesState, setStandardLapTimesState] = React.useState(calculatedStandardTimes);
+                  const [standardLapTimesState, setStandardLapTimesState] = useState(calculatedStandardTimes);
 
                   // Reset state if inputs change significantly (rudimentary sync)
-                  React.useEffect(() => {
+                  useEffect(() => {
                     setStandardLapTimesState(calculatedStandardTimes);
                   }, [calculatedStandardTimes]);
 
                   // Derive Fuel Saving line (Slave) from Standard line (Master)
-                  const fuelSavingLapTimesState = React.useMemo(() => {
+                  const fuelSavingLapTimesState = useMemo(() => {
                     return standardLapTimesState.map((t, idx) => {
                       const lap = idx + 1;
                       // Logic: Fuel save line is identical for Laps 1-3 (cold tires dictate pace),
@@ -1145,9 +1156,9 @@ const PlannerApp = () => {
                   
                   // -- 3. GRAPH INTERACTIONS --
 
-                  const [draggingIndex, setDraggingIndex] = React.useState(null);
-                  const [hoverIndex, setHoverIndex] = React.useState(null);
-                  const svgRef = React.useRef(null);
+                  const [draggingIndex, setDraggingIndex] = useState(null);
+                  const [hoverIndex, setHoverIndex] = useState(null);
+                  const svgRef = useRef(null);
 
                   // Graph Dimensions
                   const padding = { top: 40, right: 40, bottom: 50, left: 60 };
@@ -1215,10 +1226,11 @@ const PlannerApp = () => {
                   
                   // ROI Calculations
                   const totalTimeLost = fsTotal - stdTotal;
-                  const savingsPerLap = (Number(form.fuelPerLap) || 0) - (Number(form.fuelSavingFuelPerLap) || 0);
+                  
                   // Apply savings only to laps > 3 (where we actually drive slower)
+                  // Assumption: You cannot effectively fuel save during the chaotic cold tire phase
                   const applicableLaps = Math.max(0, numLaps - 3);
-                  const totalFuelSaved = applicableLaps * (savingsPerLap > 0 ? savingsPerLap : 0.15); // Fallback 0.15 if Setup inputs empty
+                  const totalFuelSaved = applicableLaps * fuelSavingPerLap;
                   const costPerLiter = totalFuelSaved > 0 ? (totalTimeLost / totalFuelSaved) : 0;
 
                   return (
@@ -1277,7 +1289,7 @@ const PlannerApp = () => {
 
                          {/* 3. Fuel Burn Factor */}
                          <div>
-                          <label className="field-label">Fuel Burn Gain / Lap</label>
+                          <label className="field-label" title="Time gained per lap as the car gets lighter from fuel consumption">Fuel Burn Gain / Lap</label>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <input
                               type="range"
@@ -1285,7 +1297,11 @@ const PlannerApp = () => {
                               max="0.2"
                               step="0.01"
                               value={fuelBurnFactor}
-                              onChange={(e) => setFuelBurnFactor(parseFloat(e.target.value))}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setFuelBurnFactor(val);
+                                setStintModelling(prev => ({ ...prev, fuelBurnFactor: val }));
+                              }}
                               style={{ flex: 1 }}
                             />
                             <span style={{ fontSize: '0.85rem', width: 40 }}>{fuelBurnFactor.toFixed(2)}s</span>
@@ -1297,7 +1313,7 @@ const PlannerApp = () => {
                         
                         {/* 3b. Tire Degradation */}
                         <div>
-                          <label className="field-label" style={{ color: '#ef4444' }}>Tire Deg / Lap</label>
+                          <label className="field-label" title="Time lost per lap due to tire wear and degradation">Tire Deg / Lap</label>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <input
                               type="range"
@@ -1305,10 +1321,14 @@ const PlannerApp = () => {
                               max="0.3"
                               step="0.01"
                               value={tireDegFactor}
-                              onChange={(e) => setTireDegFactor(parseFloat(e.target.value))}
-                              style={{ flex: 1, accentColor: '#ef4444' }}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setTireDegFactor(val);
+                                setStintModelling(prev => ({ ...prev, tireDegFactor: val }));
+                              }}
+                              style={{ flex: 1 }}
                             />
-                            <span style={{ fontSize: '0.85rem', width: 40, color: '#ef4444' }}>+{tireDegFactor.toFixed(2)}s</span>
+                            <span style={{ fontSize: '0.85rem', width: 40 }}>+{tireDegFactor.toFixed(2)}s</span>
                           </div>
                           <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
                             Time lost per lap due to wear.
@@ -1317,13 +1337,17 @@ const PlannerApp = () => {
 
                         {/* 4. Fuel Save Offset */}
                         <div>
-                          <label className="field-label" style={{ color: '#10b981' }}>Fuel Saving Delta</label>
+                          <label className="field-label" style={{ color: '#10b981' }} title="Additional time penalty per lap when driving in fuel-saving mode (applied from Lap 4 onwards)">Fuel Saving Delta</label>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                              <input
                               type="number"
                               step="0.05"
                               value={fuelSaveOffset}
-                              onChange={(e) => setFuelSaveOffset(parseFloat(e.target.value))}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setFuelSaveOffset(val);
+                                setStintModelling(prev => ({ ...prev, fuelSaveOffset: val }));
+                              }}
                               className="input-field"
                               style={{ width: '100%', borderColor: '#10b981' }}
                             />
@@ -1332,6 +1356,47 @@ const PlannerApp = () => {
                           <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
                             Offset applied to green line (Laps 4+).
                           </p>
+                        </div>
+
+                        {/* 5. Fuel Consumption Inputs (New) */}
+                        <div>
+                          <label className="field-label" title="Fuel consumption parameters for ROI calculation. These are independent from the Setup tab.">Fuel Parameters</label>
+                          <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                            <div style={{ flex: 1 }}>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                value={baseFuelConsumption}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0.01;
+                                  setBaseFuelConsumption(val);
+                                  setStintModelling(prev => ({ ...prev, baseFuelConsumption: val }));
+                                }}
+                                className="input-field"
+                                style={{ width: '100%' }}
+                                placeholder="3.0"
+                              />
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Base Cons. (L/lap)</span>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                value={fuelSavingPerLap}
+                                onChange={(e) => {
+                                  const val = Math.max(0.01, parseFloat(e.target.value) || 0.01);
+                                  setFuelSavingPerLap(val);
+                                  setStintModelling(prev => ({ ...prev, fuelSavingPerLap: val }));
+                                }}
+                                className="input-field"
+                                style={{ width: '100%', borderColor: '#10b981' }}
+                                placeholder="0.15"
+                              />
+                              <span style={{ fontSize: '0.7rem', color: '#10b981' }}>Saving (L/lap)</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -1415,14 +1480,14 @@ const PlannerApp = () => {
                       {/* --- SUMMARY STATS --- */}
                       <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
                         <div style={{ padding: 12, background: 'rgba(14, 165, 233, 0.05)', borderRadius: 8, borderLeft: '4px solid #0ea5e9' }}>
-                           <div className="stat-label">Standard Stint Time</div>
+                           <div className="stat-label" style={{ fontSize: '0.85rem' }}>Standard Stint Time</div>
                            <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text)' }}>{formatDuration(stdTotal)}</div>
                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                              Avg: {formatLapTime(stdAvg)}
                            </div>
                         </div>
                          <div style={{ padding: 12, background: 'rgba(16, 185, 129, 0.05)', borderRadius: 8, borderLeft: '4px solid #10b981' }}>
-                           <div className="stat-label">Fuel Saving Stint Time</div>
+                           <div className="stat-label" style={{ fontSize: '0.85rem' }}>Fuel Saving Stint Time</div>
                            <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text)' }}>{formatDuration(fsTotal)}</div>
                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                              Avg: {formatLapTime(fsAvg)} <span style={{ color: '#10b981' }}>({formatDuration(totalTimeLost)} slower)</span>
@@ -1432,53 +1497,30 @@ const PlannerApp = () => {
 
                       {/* --- ANALYSIS & ROI SECTION --- */}
                       <div style={{ marginTop: 24 }}>
-                        <h4 style={{ margin: '0 0 16px 0', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <h4 style={{ margin: '0 0 16px 0', fontSize: '0.95rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span>Strategy Analysis</span>
                           <div style={{ height: 1, flex: 1, background: 'var(--border)' }}></div>
                         </h4>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
                           
-                          {/* 1. Time Delta Visualization (Gap Chart) */}
-                          <div style={{ padding: 16, background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-                             <div className="stat-label" style={{ marginBottom: 12 }}>Cumulative Gap (Standard vs Saver)</div>
-                             <div style={{ display: 'flex', height: 80, alignItems: 'flex-end', gap: 2 }}>
-                                {standardLapTimesState.map((stdTime, i) => {
-                                  // Calculate cumulative loss up to this lap
-                                  const stdSum = standardLapTimesState.slice(0, i+1).reduce((a,b)=>a+b,0);
-                                  const fsSum = fuelSavingLapTimesState.slice(0, i+1).reduce((a,b)=>a+b,0);
-                                  const loss = fsSum - stdSum;
-                                  const maxLoss = fsTotal - stdTotal;
-                                  const heightPercent = maxLoss > 0 ? (loss / maxLoss) * 100 : 0;
-                                  
-                                  return (
-                                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 4, position: 'relative' }} title={`Lap ${i+1}: Gap ${loss.toFixed(1)}s`}>
-                                      <div style={{ 
-                                        width: '100%', 
-                                        height: `${Math.max(heightPercent, 5)}%`, 
-                                        background: i < 3 ? 'var(--text-muted)' : '#ef4444', 
-                                        opacity: 0.6, 
-                                        borderRadius: '2px 2px 0 0'
-                                      }}></div>
-                                      {i < 5 && (
-                                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textAlign: 'center', transform: 'rotate(-45deg)', transformOrigin: 'center', whiteSpace: 'nowrap' }}>
-                                          {i+1}
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                          {/* 1. Gap at Box (New) */}
+                          <div style={{ padding: 16, background: 'rgba(239, 68, 68, 0.1)', borderRadius: 12, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                             <div className="stat-label" style={{ marginBottom: 12, fontSize: '0.85rem', color: '#ef4444' }}>Gap at Box Entry</div>
+                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                               <span style={{ fontSize: '2rem', fontWeight: 700, color: '#fff' }}>
+                                 -{totalTimeLost.toFixed(1)}
+                               </span>
+                               <span style={{ fontSize: '1rem', color: '#ef4444' }}>sec</span>
                              </div>
-                             <div style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                                <span>Lap 1</span>
-                                <span>Total Gap: {totalTimeLost.toFixed(1)}s</span>
-                                <span>Lap {numLaps}</span>
+                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.4 }}>
+                               At the end of this {numLaps} lap stint, you will be <strong>{totalTimeLost.toFixed(1)} seconds</strong> behind a driver running standard pace.
                              </div>
                           </div>
                           
                           {/* 2. ROI Calculator */}
-                          <div style={{ padding: 16, background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-                             <div className="stat-label" style={{ marginBottom: 12 }}>Cost of Saving</div>
+                          <div style={{ padding: 16, background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                             <div className="stat-label" style={{ marginBottom: 12, fontSize: '0.85rem' }}>Cost of Saving</div>
                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Time Lost:</span>
@@ -1486,16 +1528,18 @@ const PlannerApp = () => {
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Fuel Saved:</span>
-                                  <span style={{ fontSize: '1rem', fontWeight: 600, color: '#10b981' }}>{totalFuelSaved.toFixed(2)} L</span>
+                                  <span style={{ fontSize: '1rem', fontWeight: 600, color: '#10b981' }}>{totalFuelSaved > 0 ? totalFuelSaved.toFixed(2) : '0.00'} L</span>
                                 </div>
-                                <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: 6, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Cost per Liter:</div>
-                                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#10b981' }}>
-                                    {costPerLiter > 0 ? `${costPerLiter.toFixed(2)}s/L` : 'N/A'}
+                                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Cost / Liter:</div>
+                                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>
+                                    {costPerLiter > 0 ? `${costPerLiter.toFixed(2)}s` : '0.00s'} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>per Liter</span>
                                   </div>
-                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                                    Seconds lost per liter of fuel saved
-                                  </div>
+                                  {costPerLiter === 0 && totalFuelSaved === 0 && (
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
+                                      No fuel savings calculated
+                                    </div>
+                                  )}
                                 </div>
                              </div>
                           </div>
