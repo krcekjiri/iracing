@@ -1095,10 +1095,17 @@ const PlannerApp = () => {
                     ? String(stintModelling.localTankCapacity)
                     : String(globalTank)
                   );
+                  const [fuelReserveInput, setFuelReserveInput] = useState(
+                    stintModelling.fuelReserve !== undefined
+                    ? String(stintModelling.fuelReserve)
+                    : '0.3'
+                  );
                   
                   // Parse numeric values from string inputs
                   const baseFuel = parseFloat(baseFuelInput) || 0;
                   const tankCapacity = parseFloat(tankCapacityInput) || 0;
+                  const fuelReserve = parseFloat(fuelReserveInput) || 0;
+                  const usableFuel = Math.max(0, tankCapacity - fuelReserve);
                   
                   // Sliders / Deltas
                   const [fuelSavingLiters, setFuelSavingLiters] = useState(
@@ -1112,6 +1119,10 @@ const PlannerApp = () => {
                   const [fuelBurnFactor, setFuelBurnFactor] = useState(parseFloat(stintModelling.fuelBurnFactor) || 0.05);
                   const [tireDegFactor, setTireDegFactor] = useState(parseFloat(stintModelling.tireDegFactor) || 0.05);
                   
+                  // Hover state for tooltip
+                  const [hoverLap, setHoverLap] = useState(null);
+                  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
+                  
                   // -- 2. CALCULATIONS --
                   
                   // Helper: Persist specific keys to storage
@@ -1122,18 +1133,19 @@ const PlannerApp = () => {
                   // Parse Pace
                   const basePaceSeconds = useMemo(() => parseLapTime(basePaceInput) || 120, [basePaceInput]);
                   
-                  // Auto-Calculate Laps based on Tank
-                  const stdLapsFloat = baseFuel > 0 ? tankCapacity / baseFuel : 0;
+                  // Auto-Calculate Laps based on Usable Fuel (Tank - Reserve)
+                  const stdLapsFloat = baseFuel > 0 ? usableFuel / baseFuel : 0;
                   const stdLaps = Math.floor(stdLapsFloat);
                   
                   const saveFuel = Math.max(0.1, baseFuel - fuelSavingLiters);
-                  const saveLapsFloat = saveFuel > 0 ? tankCapacity / saveFuel : 0;
+                  const saveLapsFloat = saveFuel > 0 ? usableFuel / saveFuel : 0;
                   const saveLaps = Math.floor(saveLapsFloat);
                   
                   // Calculate fractional laps gained
                   const lapsGained = saveLapsFloat - stdLapsFloat;
                   // Only count full laps when we've actually gained a full lap worth
                   const fullLapsGained = lapsGained >= 1.0 ? Math.floor(lapsGained) : 0;
+                  const progressToNextLap = lapsGained - Math.floor(lapsGained);
                   
                   // Determine Graph X-Axis (Show whichever stint is longer, plus a buffer)
                   const graphLaps = Math.max(stdLaps, saveLaps) + 2;
@@ -1206,12 +1218,22 @@ const PlannerApp = () => {
                   const scaleX = (lapIdx) => padding.left + (lapIdx / (graphLaps - 1)) * innerW;
                   const scaleY = (time) => padding.top + innerH - ((time - minTime) / timeRange) * innerH;
                   const invertScaleY = (y) => minTime + ((padding.top + innerH - y) / innerH) * timeRange;
+                  const invertScaleX = (x) => Math.round(((x - padding.left) / innerW) * (graphLaps - 1));
                   
-                  // Calculate average lap times (excluding cold laps 1-3)
-                  const stdHotLaps = stdPoints.slice(3);
-                  const saveHotLaps = savePoints.slice(3);
-                  const stdAvgLapTime = stdHotLaps.length > 0 ? stdHotLaps.reduce((a, b) => a + b, 0) / stdHotLaps.length : 0;
-                  const saveAvgLapTime = saveHotLaps.length > 0 ? saveHotLaps.reduce((a, b) => a + b, 0) / saveHotLaps.length : 0;
+                  // Calculate average lap times (whole stint)
+                  const stdAvgLapTime = stdPoints.length > 0 ? stdPoints.reduce((a, b) => a + b, 0) / stdPoints.length : 0;
+                  const saveAvgLapTime = savePoints.length > 0 ? savePoints.reduce((a, b) => a + b, 0) / savePoints.length : 0;
+                  
+                  // Calculate cumulative times at each lap for tooltip
+                  const stdCumulative = useMemo(() => {
+                    let sum = 0;
+                    return stdPoints.map(t => { sum += t; return sum; });
+                  }, [stdPoints]);
+                  
+                  const saveCumulative = useMemo(() => {
+                    let sum = 0;
+                    return savePoints.map(t => { sum += t; return sum; });
+                  }, [savePoints]);
                   
                   const handleMouseDown = (e) => {
                     e.preventDefault();
@@ -1219,31 +1241,47 @@ const PlannerApp = () => {
                   };
                   
                   const handleMouseMove = (e) => {
-                    if (!isDragging) return;
                     const svg = svgRef.current;
                     if (!svg) return;
                     
                     const rect = svg.getBoundingClientRect();
-                    // Calculate Y relative to SVG coordinate space
-                    const scaleFactor = height / rect.height; // handle CSS resizing
+                    const scaleFactor = height / rect.height;
+                    const scaleFactorX = width / rect.width;
                     const clickY = (e.clientY - rect.top) * scaleFactor;
+                    const clickX = (e.clientX - rect.left) * scaleFactorX;
                     
-                    // Logic: Calculate what the time is at this Y
-                    const clickX = (e.clientX - rect.left) * (width / rect.width);
+                    // Update hover position
+                    const lapIdx = invertScaleX(clickX);
+                    if (lapIdx >= 0 && lapIdx < Math.max(stdPoints.length, savePoints.length)) {
+                      setHoverLap(lapIdx);
+                      setHoverPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                    } else {
+                      setHoverLap(null);
+                    }
+                    
+                    if (!isDragging) return;
+                    
                     const lapAtClick = Math.round(((clickX - padding.left) / innerW) * (graphLaps - 1));
-                    const safeLapIdx = Math.max(3, Math.min(stdPoints.length - 1, lapAtClick)); // Clamp to valid range, ignore cold laps 0-2
+                    const safeLapIdx = Math.max(3, Math.min(stdPoints.length - 1, lapAtClick));
                     
                     const stdTimeAtX = stdPoints[safeLapIdx];
                     const mouseTime = invertScaleY(clickY);
                     
                     let newDelta = mouseTime - stdTimeAtX;
-                    // Clamp delta
                     newDelta = Math.max(0, Math.min(3.0, newDelta));
                     
                     setPaceDelta(newDelta);
                   };
                   
                   const handleMouseUp = () => {
+                    if (isDragging) {
+                      setIsDragging(false);
+                      updateStorage('fuelSaveOffset', paceDelta);
+                    }
+                  };
+                  
+                  const handleMouseLeave = () => {
+                    setHoverLap(null);
                     if (isDragging) {
                       setIsDragging(false);
                       updateStorage('fuelSaveOffset', paceDelta);
@@ -1257,11 +1295,10 @@ const PlannerApp = () => {
                     ).join(' ');
                   };
                   
-                  // ROI Math for Bottom Cards
-                  const lapsForComparison = stdLaps; // Compare up to when standard car pits
+                  // ROI Math
+                  const lapsForComparison = stdLaps;
                   const timeLostAtBox = (savePoints.slice(0, lapsForComparison).reduce((a,b)=>a+b,0) - stdPoints.slice(0, lapsForComparison).reduce((a,b)=>a+b,0));
-                  
-                  const fuelSavedTotal = (lapsForComparison - 3) * fuelSavingLiters;
+                  const fuelSavedTotal = lapsForComparison * fuelSavingLiters;
                   const costPerLiter = fuelSavedTotal > 0 ? timeLostAtBox / fuelSavedTotal : 0;
 
                   return (
@@ -1269,7 +1306,7 @@ const PlannerApp = () => {
                       
                       {/* --- ROW 1: INPUTS --- */}
                       <div className="card" style={{ padding: 20, background: 'var(--surface-muted)' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20 }}>
                           
                           {/* Standard Lap Time */}
                           <div>
@@ -1317,6 +1354,23 @@ const PlannerApp = () => {
                               style={{ width: '100%' }}
                             />
                           </div>
+                          {/* Fuel Reserve */}
+                          <div>
+                            <label className="field-label">Fuel Reserve</label>
+                            <input 
+                              type="text"
+                              inputMode="decimal"
+                              className="input-field" 
+                              value={fuelReserveInput}
+                              onChange={(e) => setFuelReserveInput(e.target.value)}
+                              onBlur={(e) => {
+                                const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                setFuelReserveInput(String(v));
+                                updateStorage('fuelReserve', v);
+                              }}
+                              style={{ width: '100%' }}
+                            />
+                          </div>
                         </div>
                       </div>
 
@@ -1336,13 +1390,13 @@ const PlannerApp = () => {
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                               <label className="field-label" style={{ color: '#10b981', margin: 0, fontSize: '0.75rem' }}>Fuel Saving</label>
-                              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981' }}>{fuelSavingLiters.toFixed(2)} L</span>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981' }}>-{fuelSavingLiters.toFixed(2)} L</span>
                             </div>
                             <input 
                               type="range" 
                               min={0} 
-                              max={baseFuel * 0.15 || 0.5}
-                              step={0.001}
+                              max={baseFuel * 0.10 || 0.5}
+                              step={0.01}
                               value={fuelSavingLiters}
                               onInput={(e) => setFuelSavingLiters(parseFloat(e.target.value))}
                               onChange={(e) => setFuelSavingLiters(parseFloat(e.target.value))}
@@ -1351,7 +1405,7 @@ const PlannerApp = () => {
                               style={{ width: '100%', accentColor: '#10b981', cursor: 'grab' }}
                             />
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                              {baseFuel > 0 ? ((fuelSavingLiters/baseFuel)*100).toFixed(1) : 0}% reduction
+                              Target: {saveFuel.toFixed(2)} L/lap
                             </div>
                           </div>
 
@@ -1365,7 +1419,7 @@ const PlannerApp = () => {
                               type="range" 
                               min={0} 
                               max={2.5} 
-                              step={0.001}
+                              step={0.01}
                               value={paceDelta}
                               onInput={(e) => setPaceDelta(parseFloat(e.target.value))}
                               onChange={(e) => setPaceDelta(parseFloat(e.target.value))}
@@ -1410,8 +1464,8 @@ const PlannerApp = () => {
                             <input 
                               type="range" 
                               min={0} 
-                              max={0.2} 
-                              step={0.001}
+                              max={0.1} 
+                              step={0.01}
                               value={tireDegFactor}
                               onInput={(e) => setTireDegFactor(parseFloat(e.target.value))}
                               onChange={(e) => setTireDegFactor(parseFloat(e.target.value))}
@@ -1425,41 +1479,64 @@ const PlannerApp = () => {
                           </div>
                         </div>
 
-                        {/* Extra Laps Result */}
+                        {/* Extra Laps Result - Option A with progress */}
                         <div style={{ 
                           marginTop: 20, 
                           paddingTop: 16, 
                           borderTop: '1px solid var(--border)',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 16
+                          gap: 16,
+                          flexWrap: 'wrap'
                         }}>
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center', 
                             gap: 12,
                             padding: '8px 16px',
-                            background: lapsGained >= 1.0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
+                            background: fullLapsGained >= 1 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
                             borderRadius: 8,
-                            border: lapsGained >= 1.0 ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)'
+                            border: fullLapsGained >= 1 ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)'
                           }}>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Extra Laps:</span>
                             <span style={{ 
                               fontSize: '1.1rem', 
                               fontWeight: 700, 
-                              color: lapsGained >= 1.0 ? '#10b981' : 'var(--text)' 
+                              color: fullLapsGained >= 1 ? '#10b981' : 'var(--text)' 
                             }}>
                               +{lapsGained.toFixed(2)}
                             </span>
                           </div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            Stint: <span style={{ color: '#0ea5e9' }}>{stdLaps}</span> → <span style={{ color: '#10b981', fontWeight: 600 }}>{saveLaps}</span> laps
-                            {fullLapsGained >= 1 && (
-                              <span style={{ marginLeft: 8, color: '#10b981' }}>
-                                (+{fullLapsGained} full {fullLapsGained === 1 ? 'lap' : 'laps'})
+                          
+                          {/* Progress bar to next full lap */}
+                          {fullLapsGained < 1 && lapsGained > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ 
+                                width: 80, 
+                                height: 6, 
+                                background: 'rgba(255,255,255,0.1)', 
+                                borderRadius: 3,
+                                overflow: 'hidden'
+                              }}>
+                                <div style={{ 
+                                  width: `${Math.min(100, progressToNextLap * 100)}%`, 
+                                  height: '100%', 
+                                  background: '#10b981',
+                                  borderRadius: 3,
+                                  transition: 'width 0.2s'
+                                }} />
+                              </div>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                {(1 - progressToNextLap).toFixed(2)} to +1 lap
                               </span>
-                            )}
-                          </div>
+                            </div>
+                          )}
+                          
+                          {fullLapsGained >= 1 && (
+                            <div style={{ fontSize: '0.8rem', color: '#10b981' }}>
+                              Stint extended: {stdLaps} → {saveLaps} laps (+{fullLapsGained} full)
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1467,10 +1544,10 @@ const PlannerApp = () => {
                       <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
                         {/* Graph SVG */}
                         <div 
-                          style={{ position: 'relative', height: height, flex: 1, background: 'var(--surface-muted)', cursor: isDragging ? 'grabbing' : 'default' }}
+                          style={{ position: 'relative', height: height, flex: 1, background: 'var(--surface-muted)', cursor: isDragging ? 'grabbing' : 'crosshair' }}
                           onMouseMove={handleMouseMove}
                           onMouseUp={handleMouseUp}
-                          onMouseLeave={handleMouseUp}
+                          onMouseLeave={handleMouseLeave}
                           ref={svgRef}
                         >
                            <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
@@ -1512,31 +1589,93 @@ const PlannerApp = () => {
                                   </text>
                                 );
                               })}
-                              {/* Labels X */}
-                              <text x={scaleX(0)} y={height - 5} fill="var(--text-muted)" fontSize="10" textAnchor="middle">Start</text>
-                              <text x={scaleX(stdLaps)} y={height - 5} fill="#0ea5e9" fontSize="10" textAnchor="middle" fontWeight="bold">L{stdLaps}</text>
+                              {/* X-Axis Labels */}
+                              <text x={scaleX(0)} y={height - 5} fill="var(--text-muted)" fontSize="10" textAnchor="middle">L1</text>
+                              <text x={scaleX(stdLaps - 1)} y={height - 5} fill="#0ea5e9" fontSize="10" textAnchor="middle" fontWeight="bold">L{stdLaps}</text>
                               {saveLaps > stdLaps && (
-                                <text x={scaleX(saveLaps)} y={height - 5} fill="#10b981" fontSize="10" textAnchor="middle" fontWeight="bold">L{saveLaps}</text>
+                                <text x={scaleX(saveLaps - 1)} y={height - 5} fill="#10b981" fontSize="10" textAnchor="middle" fontWeight="bold">L{saveLaps}</text>
                               )}
-                              {/* LINES */}
-                              {/* Blue (Standard) */}
-                              <path d={makePath(stdPoints)} fill="none" stroke="#0ea5e9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
+                              
+                              {/* Hover vertical line */}
+                              {hoverLap !== null && hoverLap < Math.max(stdPoints.length, savePoints.length) && (
+                                <line
+                                  x1={scaleX(hoverLap)}
+                                  y1={padding.top}
+                                  x2={scaleX(hoverLap)}
+                                  y2={height - padding.bottom}
+                                  stroke="rgba(255,255,255,0.3)"
+                                  strokeWidth="1"
+                                  strokeDasharray="4 4"
+                                />
+                              )}
+                              
+                              {/* Blue (Standard) Line */}
+                              <path d={makePath(stdPoints)} fill="none" stroke="#0ea5e9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
                               <circle cx={scaleX(stdPoints.length-1)} cy={scaleY(stdPoints[stdPoints.length-1])} r="4" fill="#0ea5e9" />
-                              {/* Green (Saver) - Draggable */}
+                              
+                              {/* Green (Saver) Line - Draggable */}
                               <g 
                                 onMouseDown={handleMouseDown} 
                                 style={{ cursor: 'grab' }}
                               >
-                                {/* Transparent Hit Area for easier grabbing */}
                                 <path d={makePath(savePoints)} fill="none" stroke="transparent" strokeWidth="20" />
-                                
-                                {/* Visible Line */}
                                 <path d={makePath(savePoints)} fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                                
-                                {/* End Dot */}
                                 <circle cx={scaleX(savePoints.length-1)} cy={scaleY(savePoints[savePoints.length-1])} r="5" fill="#10b981" stroke="#fff" strokeWidth="2" />
                               </g>
+                              
+                              {/* Hover dots */}
+                              {hoverLap !== null && stdPoints[hoverLap] !== undefined && (
+                                <circle cx={scaleX(hoverLap)} cy={scaleY(stdPoints[hoverLap])} r="5" fill="#0ea5e9" stroke="#fff" strokeWidth="2" />
+                              )}
+                              {hoverLap !== null && savePoints[hoverLap] !== undefined && (
+                                <circle cx={scaleX(hoverLap)} cy={scaleY(savePoints[hoverLap])} r="5" fill="#10b981" stroke="#fff" strokeWidth="2" />
+                              )}
                           </svg>
+                          
+                           {/* Hover Tooltip */}
+                           {hoverLap !== null && (stdPoints[hoverLap] !== undefined || savePoints[hoverLap] !== undefined) && (
+                             <div style={{
+                               position: 'absolute',
+                               left: hoverPos.x > 300 ? hoverPos.x - 180 : hoverPos.x + 12,
+                               top: Math.max(10, Math.min(hoverPos.y - 60, height - 120)),
+                               background: 'rgba(0,0,0,0.9)',
+                               border: '1px solid var(--border)',
+                               borderRadius: 6,
+                               padding: '8px 12px',
+                               pointerEvents: 'none',
+                               zIndex: 10,
+                               minWidth: 160
+                             }}>
+                               <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>
+                                 Lap {hoverLap + 1}
+                               </div>
+                               {stdPoints[hoverLap] !== undefined && (
+                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 4 }}>
+                                   <span style={{ fontSize: '0.7rem', color: '#0ea5e9' }}>Standard:</span>
+                                   <span style={{ fontSize: '0.7rem', color: '#0ea5e9', fontWeight: 600 }}>{formatLapTime(stdPoints[hoverLap])}</span>
+                                 </div>
+                               )}
+                               {savePoints[hoverLap] !== undefined && (
+                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 4 }}>
+                                   <span style={{ fontSize: '0.7rem', color: '#10b981' }}>Fuel Save:</span>
+                                   <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600 }}>{formatLapTime(savePoints[hoverLap])}</span>
+                                 </div>
+                               )}
+                               {stdPoints[hoverLap] !== undefined && savePoints[hoverLap] !== undefined && (
+                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+                                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Delta:</span>
+                                   <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>+{(savePoints[hoverLap] - stdPoints[hoverLap]).toFixed(3)}s</span>
+                                 </div>
+                               )}
+                               {stdCumulative[hoverLap] !== undefined && saveCumulative[hoverLap] !== undefined && (
+                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginTop: 4 }}>
+                                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Gap:</span>
+                                   <span style={{ fontSize: '0.65rem', color: '#ef4444' }}>-{(saveCumulative[hoverLap] - stdCumulative[hoverLap]).toFixed(1)}s</span>
+                                 </div>
+                               )}
+                             </div>
+                           )}
+                           
                           {/* Subtle drag hint */}
                           <div style={{ 
                             position: 'absolute', 
@@ -1560,37 +1699,31 @@ const PlannerApp = () => {
                           padding: '16px 20px',
                           background: 'rgba(0, 0, 0, 0.3)',
                           borderLeft: '1px solid var(--border)',
-                          minWidth: 160
+                          minWidth: 150
                         }}>
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            Avg Lap Time
+                            Stint Average
                           </div>
                           
                           {/* Standard */}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <div style={{ width: 10, height: 3, background: '#0ea5e9', borderRadius: 2 }} />
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Standard</span>
-                            </div>
-                            <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0ea5e9', marginLeft: 16 }}>
+                            <span style={{ fontSize: '0.7rem', color: '#0ea5e9' }}>Standard</span>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0ea5e9' }}>
                               {formatLapTime(stdAvgLapTime)}
                             </span>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: 16 }}>
-                              {stdHotLaps.length} hot laps
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                              {stdPoints.length} laps
                             </span>
                           </div>
                           
                           {/* Fuel Save */}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <div style={{ width: 10, height: 3, background: '#10b981', borderRadius: 2 }} />
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Fuel Save</span>
-                            </div>
-                            <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#10b981', marginLeft: 16 }}>
+                            <span style={{ fontSize: '0.7rem', color: '#10b981' }}>Fuel Save</span>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#10b981' }}>
                               {formatLapTime(saveAvgLapTime)}
                             </span>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: 16 }}>
-                              {saveHotLaps.length} hot laps
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                              {savePoints.length} laps
                             </span>
                           </div>
                           
@@ -1610,58 +1743,76 @@ const PlannerApp = () => {
                         </div>
                       </div>
 
-                      {/* --- ROW 4: ANALYSIS --- */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+                      {/* --- ROW 4: STRATEGY ROI (Enhanced) --- */}
+                      <div className="card">
+                        <div className="stat-label" style={{ marginBottom: 16 }}>Strategy ROI Analysis</div>
                         
-                        {/* Card A: Gap at Box */}
-                        <div className="card" style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                           <div className="stat-label" style={{ color: '#ef4444', marginBottom: 8 }}>Gap at Box Entry (Lap {lapsForComparison})</div>
-                           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                             <span style={{ fontSize: '1.8rem', fontWeight: 700, color: '#fff' }}>-{timeLostAtBox.toFixed(1)}</span>
-                             <span style={{ fontSize: '1rem', color: '#ef4444' }}>sec</span>
-                           </div>
-                           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '8px 0 0 0' }}>
-                             Time lost over {lapsForComparison} laps compared to standard pace.
-                           </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                          {/* Left: The Cost */}
+                          <div style={{ 
+                            padding: 16, 
+                            background: 'rgba(239, 68, 68, 0.05)', 
+                            borderRadius: 8, 
+                            border: '1px solid rgba(239, 68, 68, 0.2)' 
+                          }}>
+                            <div style={{ fontSize: '0.75rem', color: '#ef4444', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              The Cost
+                            </div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ef4444', marginBottom: 8 }}>
+                              -{timeLostAtBox.toFixed(1)}s
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                              Total time lost over <strong>{lapsForComparison} laps</strong> by driving at fuel-save pace instead of standard pace.
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 8, opacity: 0.7 }}>
+                              = {lapsForComparison} laps × {paceDelta.toFixed(2)}s avg delta
+                            </div>
+                          </div>
+                          
+                          {/* Right: The Reward */}
+                          <div style={{ 
+                            padding: 16, 
+                            background: 'rgba(16, 185, 129, 0.05)', 
+                            borderRadius: 8, 
+                            border: '1px solid rgba(16, 185, 129, 0.2)' 
+                          }}>
+                            <div style={{ fontSize: '0.75rem', color: '#10b981', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              The Reward
+                            </div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#10b981', marginBottom: 8 }}>
+                              +{fuelSavedTotal.toFixed(2)}L
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                              Total fuel saved over <strong>{lapsForComparison} laps</strong>, enabling extended stint or safety margin.
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 8, opacity: 0.7 }}>
+                              = {lapsForComparison} laps × {fuelSavingLiters.toFixed(2)}L saved/lap
+                            </div>
+                          </div>
                         </div>
-
-                        {/* Card B: Strategy ROI - Expanded */}
-                        <div className="card">
-                           <div className="stat-label" style={{ marginBottom: 12 }}>Strategy ROI</div>
-                           
-                           {/* Time Lost */}
-                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, padding: '8px 0', borderBottom: '1px dashed var(--border)' }}>
-                              <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Time Lost:</span>
-                              <span style={{ fontWeight: 600, color: '#ef4444' }}>-{timeLostAtBox.toFixed(1)} s</span>
-                           </div>
-                           
-                           {/* Fuel Saved */}
-                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, padding: '8px 0', borderBottom: '1px dashed var(--border)' }}>
-                              <span style={{ fontSize: '0.85rem', color: '#10b981' }}>Fuel Saved:</span>
-                              <span style={{ fontWeight: 600, color: '#10b981' }}>+{fuelSavedTotal.toFixed(2)} L</span>
-                           </div>
-                           
-                           {/* Division Line Visual */}
-                           <div style={{ 
-                             display: 'flex', 
-                             justifyContent: 'space-between', 
-                             alignItems: 'center',
-                             padding: '12px', 
-                             marginTop: 4,
-                             background: 'rgba(56, 189, 248, 0.08)',
-                             borderRadius: 6
-                           }}>
-                              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Cost per Liter:</span>
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                                <span style={{ fontWeight: 700, fontSize: '1.2rem', color: '#fff' }}>{costPerLiter.toFixed(2)}</span>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>s / L</span>
-                              </div>
-                           </div>
-                           
-                           {/* Formula hint */}
-                           <div style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                             {timeLostAtBox.toFixed(1)}s ÷ {fuelSavedTotal.toFixed(2)}L = {costPerLiter.toFixed(2)}s/L
-                           </div>
+                        
+                        {/* Bottom: Efficiency Metric */}
+                        <div style={{ 
+                          marginTop: 16,
+                          padding: 16,
+                          background: 'rgba(56, 189, 248, 0.08)',
+                          borderRadius: 8,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Efficiency: Time Cost per Liter Saved</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.7 }}>
+                              {timeLostAtBox.toFixed(1)}s ÷ {fuelSavedTotal.toFixed(2)}L
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff' }}>
+                              {costPerLiter.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>seconds / liter</div>
+                          </div>
                         </div>
                       </div>
                     </div>
