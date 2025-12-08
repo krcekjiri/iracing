@@ -1374,23 +1374,23 @@ const PlannerApp = () => {
                         </div>
                       </div>
 
-                      {/* --- ROW 2: ALL 4 SLIDERS --- */}
+                      {/* --- ROW 2: FUEL SAVING (HERO) + LAP TARGETS --- */}
                       <div className="card" style={{ padding: 20, background: 'var(--surface-muted)' }}>
                         <div style={{ 
                           display: 'grid', 
-                          gridTemplateColumns: 'repeat(4, 1fr)', 
+                          gridTemplateColumns: '1fr 1fr', 
                           gap: 24,
                           padding: 16,
-                          background: 'rgba(0, 0, 0, 0.2)',
+                          background: 'rgba(16, 185, 129, 0.08)',
                           borderRadius: 8,
-                          border: '1px solid var(--border)'
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          marginBottom: 16
                         }}>
-                          
-                          {/* 1. Fuel Saving Slider */}
+                          {/* Fuel Saving Slider */}
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <label className="field-label" style={{ color: '#10b981', margin: 0, fontSize: '0.75rem' }}>Fuel Saving</label>
-                              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981' }}>-{fuelSavingLiters.toFixed(2)} L</span>
+                              <label className="field-label" style={{ color: '#10b981', margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>Fuel Saving</label>
+                              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#10b981' }}>-{fuelSavingLiters.toFixed(2)} L/lap</span>
                             </div>
                             <input 
                               type="range" 
@@ -1404,12 +1404,69 @@ const PlannerApp = () => {
                               onTouchEnd={() => updateStorage('fuelSavingPerLap', fuelSavingLiters)}
                               style={{ width: '100%', accentColor: '#10b981', cursor: 'grab' }}
                             />
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                              Target: {saveFuel.toFixed(2)} L/lap
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6 }}>
+                              Current: <strong style={{ color: '#10b981' }}>{saveFuel.toFixed(2)} L/lap</strong> → {saveLapsFloat.toFixed(2)} laps
                             </div>
                           </div>
-
-                          {/* 2. Pace Delta Slider */}
+                          
+                          {/* Lap Targets */}
+                          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+                            {(() => {
+                              const targets = [
+                                { label: 'Standard', laps: stdLaps, consumption: baseFuel },
+                                { label: '+1 lap', laps: stdLaps + 1, consumption: usableFuel / (stdLaps + 1) },
+                                { label: '+2 laps', laps: stdLaps + 2, consumption: usableFuel / (stdLaps + 2) },
+                              ];
+                              return targets.map((target, idx) => {
+                                const achieved = saveFuel <= target.consumption;
+                                const isNext = !achieved && (idx === 0 || saveFuel <= targets[idx - 1].consumption);
+                                const delta = saveFuel - target.consumption;
+                                return (
+                                  <div 
+                                    key={idx}
+                                    style={{ 
+                                      display: 'flex', 
+                                      justifyContent: 'space-between', 
+                                      alignItems: 'center',
+                                      padding: '4px 8px',
+                                      borderRadius: 4,
+                                      background: achieved ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                      fontSize: '0.75rem'
+                                    }}
+                                  >
+                                    <span style={{ color: achieved ? '#10b981' : 'var(--text-muted)' }}>
+                                      {target.label} ({target.laps} laps)
+                                    </span>
+                                    <span style={{ fontWeight: 500, color: achieved ? '#10b981' : 'var(--text-muted)' }}>
+                                      {target.consumption.toFixed(2)} L/lap
+                                    </span>
+                                    <span style={{ width: 80, textAlign: 'right' }}>
+                                      {achieved ? (
+                                        <span style={{ color: '#10b981' }}>✓</span>
+                                      ) : isNext ? (
+                                        <span style={{ color: '#f59e0b', fontSize: '0.7rem' }}>-{delta.toFixed(2)} L more</span>
+                                      ) : (
+                                        <span style={{ color: 'var(--text-muted)', opacity: 0.5 }}>—</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                        
+                        {/* --- ROW 3: PHYSICS SLIDERS (3 columns) --- */}
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(3, 1fr)', 
+                          gap: 24,
+                          padding: 16,
+                          background: 'rgba(0, 0, 0, 0.2)',
+                          borderRadius: 8,
+                          border: '1px solid var(--border)'
+                        }}>
+                          {/* Pace Delta Slider */}
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                               <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Pace Delta</label>
@@ -1431,8 +1488,7 @@ const PlannerApp = () => {
                               Time cost per lap
                             </div>
                           </div>
-
-                          {/* 3. Fuel Burn Slider */}
+                          {/* Fuel Burn Slider */}
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                               <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Fuel Burn Effect</label>
@@ -1442,7 +1498,7 @@ const PlannerApp = () => {
                               type="range" 
                               min={0} 
                               max={0.1} 
-                              step={0.001}
+                              step={0.01}
                               value={fuelBurnFactor}
                               onInput={(e) => setFuelBurnFactor(parseFloat(e.target.value))}
                               onChange={(e) => setFuelBurnFactor(parseFloat(e.target.value))}
@@ -1454,8 +1510,7 @@ const PlannerApp = () => {
                               Faster as fuel burns
                             </div>
                           </div>
-
-                          {/* 4. Tire Deg Slider */}
+                          {/* Tire Deg Slider */}
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                               <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Tire Deg Effect</label>
@@ -1477,66 +1532,6 @@ const PlannerApp = () => {
                               Slower as tires wear
                             </div>
                           </div>
-                        </div>
-
-                        {/* Extra Laps Result - Option A with progress */}
-                        <div style={{ 
-                          marginTop: 20, 
-                          paddingTop: 16, 
-                          borderTop: '1px solid var(--border)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 16,
-                          flexWrap: 'wrap'
-                        }}>
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 12,
-                            padding: '8px 16px',
-                            background: fullLapsGained >= 1 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
-                            borderRadius: 8,
-                            border: fullLapsGained >= 1 ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)'
-                          }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Extra Laps:</span>
-                            <span style={{ 
-                              fontSize: '1.1rem', 
-                              fontWeight: 700, 
-                              color: fullLapsGained >= 1 ? '#10b981' : 'var(--text)' 
-                            }}>
-                              +{lapsGained.toFixed(2)}
-                            </span>
-                          </div>
-                          
-                          {/* Progress bar to next full lap */}
-                          {fullLapsGained < 1 && lapsGained > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div style={{ 
-                                width: 80, 
-                                height: 6, 
-                                background: 'rgba(255,255,255,0.1)', 
-                                borderRadius: 3,
-                                overflow: 'hidden'
-                              }}>
-                                <div style={{ 
-                                  width: `${Math.min(100, progressToNextLap * 100)}%`, 
-                                  height: '100%', 
-                                  background: '#10b981',
-                                  borderRadius: 3,
-                                  transition: 'width 0.2s'
-                                }} />
-                              </div>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                {(1 - progressToNextLap).toFixed(2)} to +1 lap
-                              </span>
-                            </div>
-                          )}
-                          
-                          {fullLapsGained >= 1 && (
-                            <div style={{ fontSize: '0.8rem', color: '#10b981' }}>
-                              Stint extended: {stdLaps} → {saveLaps} laps (+{fullLapsGained} full)
-                            </div>
-                          )}
                         </div>
                       </div>
 
@@ -1756,7 +1751,7 @@ const PlannerApp = () => {
                             border: '1px solid rgba(239, 68, 68, 0.2)' 
                           }}>
                             <div style={{ fontSize: '0.75rem', color: '#ef4444', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              The Cost
+                              LAP TIME COST
                             </div>
                             <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ef4444', marginBottom: 8 }}>
                               -{timeLostAtBox.toFixed(1)}s
@@ -1777,7 +1772,7 @@ const PlannerApp = () => {
                             border: '1px solid rgba(16, 185, 129, 0.2)' 
                           }}>
                             <div style={{ fontSize: '0.75rem', color: '#10b981', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              The Reward
+                              FUEL SAVED
                             </div>
                             <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#10b981', marginBottom: 8 }}>
                               +{fuelSavedTotal.toFixed(2)}L
