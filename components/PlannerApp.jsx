@@ -1064,8 +1064,7 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              <strong>"What If" Sandbox:</strong> Stint length is automatically calculated based on Tank Capacity and Fuel Burn. 
-              Drag the green line or use sliders to plan your saving strategy.
+              <strong>"What If" Sandbox:</strong> Model fuel saving trade-offs: see exactly how much you need to save per lap to gain an extra lap, and what it costs in lap time.
             </p>
           </div>
           <div className="card">
@@ -1310,7 +1309,7 @@ const PlannerApp = () => {
                           
                           {/* Standard Lap Time */}
                           <div>
-                            <label className="field-label">Standard Lap Time</label>
+                            <label className="field-label" style={{ marginBottom: 8 }}>Standard Lap Time</label>
                             <input 
                               type="text" 
                               className="input-field" 
@@ -1322,7 +1321,7 @@ const PlannerApp = () => {
                           </div>
                           {/* Standard Fuel / Lap */}
                           <div>
-                            <label className="field-label">Standard Fuel / Lap</label>
+                            <label className="field-label" style={{ marginBottom: 8 }}>Standard Fuel / Lap</label>
                             <input 
                               type="text"
                               inputMode="decimal"
@@ -1339,7 +1338,7 @@ const PlannerApp = () => {
                           </div>
                           {/* Tank Capacity */}
                           <div>
-                            <label className="field-label">Tank Capacity</label>
+                            <label className="field-label" style={{ marginBottom: 8 }}>Tank Capacity</label>
                             <input 
                               type="text"
                               inputMode="decimal"
@@ -1356,7 +1355,7 @@ const PlannerApp = () => {
                           </div>
                           {/* Fuel Reserve */}
                           <div>
-                            <label className="field-label">Fuel Reserve</label>
+                            <label className="field-label" style={{ marginBottom: 8 }}>Fuel Reserve</label>
                             <input 
                               type="text"
                               inputMode="decimal"
@@ -1381,9 +1380,9 @@ const PlannerApp = () => {
                           gridTemplateColumns: '1fr 1fr', 
                           gap: 24,
                           padding: 16,
-                          background: 'rgba(16, 185, 129, 0.08)',
+                          background: 'rgba(0, 0, 0, 0.2)',
                           borderRadius: 8,
-                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          border: '1px solid var(--border)',
                           marginBottom: 16
                         }}>
                           {/* Fuel Saving Slider */}
@@ -1417,10 +1416,18 @@ const PlannerApp = () => {
                                 { label: '+1 lap', laps: stdLaps + 1, consumption: usableFuel / (stdLaps + 1) },
                                 { label: '+2 laps', laps: stdLaps + 2, consumption: usableFuel / (stdLaps + 2) },
                               ];
+                              // Color mapping: Standard (blue), +1 lap (green), +2 laps (yellow)
+                              const colors = [
+                                { bg: 'rgba(59, 130, 246, 0.15)', border: 'rgba(59, 130, 246, 0.35)', text: '#3b82f6' }, // Standard - blue
+                                { bg: 'rgba(34, 197, 94, 0.15)', border: 'rgba(34, 197, 94, 0.35)', text: '#22c55e' }, // +1 lap - green
+                                { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 0.35)', text: '#f59e0b' }, // +2 laps - yellow
+                              ];
                               return targets.map((target, idx) => {
                                 const achieved = saveFuel <= target.consumption;
                                 const isNext = !achieved && (idx === 0 || saveFuel <= targets[idx - 1].consumption);
                                 const delta = saveFuel - target.consumption;
+                                const displayDelta = delta > 0 && delta < 0.005 ? 0.01 : delta;
+                                const color = colors[idx];
                                 return (
                                   <div 
                                     key={idx}
@@ -1430,21 +1437,22 @@ const PlannerApp = () => {
                                       alignItems: 'center',
                                       padding: '4px 8px',
                                       borderRadius: 4,
-                                      background: achieved ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                      background: achieved ? color.bg : 'transparent',
+                                      border: achieved ? `1px solid ${color.border}` : 'none',
                                       fontSize: '0.75rem'
                                     }}
                                   >
-                                    <span style={{ color: achieved ? '#10b981' : 'var(--text-muted)' }}>
+                                    <span style={{ color: achieved ? color.text : 'var(--text-muted)' }}>
                                       {target.label} ({target.laps} laps)
                                     </span>
-                                    <span style={{ fontWeight: 500, color: achieved ? '#10b981' : 'var(--text-muted)' }}>
+                                    <span style={{ fontWeight: 500, color: achieved ? color.text : 'var(--text-muted)' }}>
                                       {target.consumption.toFixed(2)} L/lap
                                     </span>
                                     <span style={{ width: 80, textAlign: 'right' }}>
                                       {achieved ? (
-                                        <span style={{ color: '#10b981' }}>✓</span>
+                                        <span style={{ color: color.text }}>✓</span>
                                       ) : isNext ? (
-                                        <span style={{ color: '#f59e0b', fontSize: '0.7rem' }}>-{delta.toFixed(2)} L more</span>
+                                        <span style={{ color: '#f59e0b', fontSize: '0.7rem' }}>-{displayDelta.toFixed(2)} L more</span>
                                       ) : (
                                         <span style={{ color: 'var(--text-muted)', opacity: 0.5 }}>—</span>
                                       )}
@@ -1662,12 +1670,25 @@ const PlannerApp = () => {
                                    <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>+{(savePoints[hoverLap] - stdPoints[hoverLap]).toFixed(3)}s</span>
                                  </div>
                                )}
-                               {stdCumulative[hoverLap] !== undefined && saveCumulative[hoverLap] !== undefined && (
-                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginTop: 4 }}>
-                                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Gap:</span>
-                                   <span style={{ fontSize: '0.65rem', color: '#ef4444' }}>-{(saveCumulative[hoverLap] - stdCumulative[hoverLap]).toFixed(1)}s</span>
-                                 </div>
-                               )}
+                              {stdCumulative[hoverLap] !== undefined && saveCumulative[hoverLap] !== undefined && (
+                                <>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginTop: 4 }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Gap:</span>
+                                    <span style={{ fontSize: '0.65rem', color: '#ef4444' }}>-{(saveCumulative[hoverLap] - stdCumulative[hoverLap]).toFixed(1)}s</span>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Elapsed:</span>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                      {(() => {
+                                        const totalSeconds = stdCumulative[hoverLap];
+                                        const mins = Math.floor(totalSeconds / 60);
+                                        const secs = Math.floor(totalSeconds % 60);
+                                        return `${mins}:${String(secs).padStart(2, '0')}`;
+                                      })()}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
                              </div>
                            )}
                            
@@ -1707,7 +1728,12 @@ const PlannerApp = () => {
                               {formatLapTime(stdAvgLapTime)}
                             </span>
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                              {stdPoints.length} laps
+                              {stdPoints.length} laps • {(() => {
+                                const totalSeconds = stdCumulative[stdCumulative.length - 1] || 0;
+                                const mins = Math.floor(totalSeconds / 60);
+                                const secs = Math.floor(totalSeconds % 60);
+                                return `${mins}:${String(secs).padStart(2, '0')}`;
+                              })()}
                             </span>
                           </div>
                           
@@ -1718,7 +1744,12 @@ const PlannerApp = () => {
                               {formatLapTime(saveAvgLapTime)}
                             </span>
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                              {savePoints.length} laps
+                              {savePoints.length} laps • {(() => {
+                                const totalSeconds = saveCumulative[saveCumulative.length - 1] || 0;
+                                const mins = Math.floor(totalSeconds / 60);
+                                const secs = Math.floor(totalSeconds % 60);
+                                return `${mins}:${String(secs).padStart(2, '0')}`;
+                              })()}
                             </span>
                           </div>
                           
