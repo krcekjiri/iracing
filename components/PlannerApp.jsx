@@ -1172,7 +1172,6 @@ const PlannerApp = () => {
                   // -- 4. GRAPH INTERACTION --
                   const svgRef = useRef(null);
                   const [isDragging, setIsDragging] = useState(false);
-                  const [hoverLap, setHoverLap] = useState(null);
                   
                   // Dimensions
                   const height = 300;
@@ -1236,7 +1235,7 @@ const PlannerApp = () => {
                   };
                   
                   // ROI Math for Bottom Cards
-                  const lapsForComparison = Math.min(stdLaps, saveLaps);
+                  const lapsForComparison = stdLaps; // Compare up to when standard car pits
                   const timeLostAtBox = (savePoints.slice(0, lapsForComparison).reduce((a,b)=>a+b,0) - stdPoints.slice(0, lapsForComparison).reduce((a,b)=>a+b,0));
                   
                   const fuelSavedTotal = (lapsForComparison - 3) * fuelSavingLiters;
@@ -1249,9 +1248,9 @@ const PlannerApp = () => {
                       <div className="card" style={{ padding: 20, background: 'var(--surface-muted)' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
                           
-                          {/* Base Pace */}
+                          {/* Standard Lap Time */}
                           <div>
-                            <label className="field-label">Baseline Pace (Hot)</label>
+                            <label className="field-label">Standard Lap Time</label>
                             <input 
                               type="text" 
                               className="input-field" 
@@ -1262,11 +1261,11 @@ const PlannerApp = () => {
                               }}
                               style={{ width: '100%' }}
                             />
-                            <div className="stat-label" style={{ marginTop: 4 }}>Lap 4 time</div>
+                            <div className="stat-label" style={{ marginTop: 4 }}>Hot lap (Lap 4+)</div>
                           </div>
-                          {/* Base Fuel */}
+                          {/* Standard Fuel / Lap */}
                           <div>
-                            <label className="field-label">Base Fuel / Lap</label>
+                            <label className="field-label">Standard Fuel / Lap</label>
                             <input 
                               type="number" 
                               step="0.01"
@@ -1281,11 +1280,12 @@ const PlannerApp = () => {
                             />
                             <div className="stat-label" style={{ marginTop: 4 }}>Standard consumption</div>
                           </div>
-                          {/* Tank (Override) */}
+                          {/* Tank Capacity */}
                           <div>
                             <label className="field-label">Tank Capacity</label>
                             <input 
-                              type="number" 
+                              type="number"
+                              step="0.01"
                               className="input-field" 
                               value={tankCapacity}
                               onChange={(e) => {
@@ -1296,98 +1296,153 @@ const PlannerApp = () => {
                               style={{ width: '100%' }}
                             />
                             <div className="stat-label" style={{ marginTop: 4 }}>
-                              Max Laps: <span style={{ color: '#0ea5e9', fontWeight: 600 }}>{stdLaps}</span>
+                              Standard Stint: <span style={{ color: '#0ea5e9', fontWeight: 600 }}>{stdLaps} laps</span>
                             </div>
                           </div>
                         </div>
-                        
-                        {/* Physics Toggles (Collapsible-ish feel) */}
-                        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <label className="field-label" style={{ margin: 0, width: 90 }}>Fuel Burn:</label>
-                              <input type="range" min="0" max="0.1" step="0.01" value={fuelBurnFactor} onChange={e => {setFuelBurnFactor(parseFloat(e.target.value)); updateStorage('fuelBurnFactor', e.target.value)}} />
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 30 }}>{fuelBurnFactor.toFixed(2)}s</span>
-                           </div>
-                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <label className="field-label" style={{ margin: 0, width: 90 }}>Tire Deg:</label>
-                              <input type="range" min="0" max="0.2" step="0.01" value={tireDegFactor} onChange={e => {setTireDegFactor(parseFloat(e.target.value)); updateStorage('tireDegFactor', e.target.value)}} />
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 30 }}>{tireDegFactor.toFixed(2)}s</span>
-                           </div>
-                        </div>
                       </div>
-                      {/* --- ROW 2: SLIDERS & GRAPH --- */}
-                      <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        
-                        {/* Sliders Toolbar */}
-                        <div style={{ padding: '16px 24px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+
+                      {/* --- ROW 2: ALL 4 SLIDERS --- */}
+                      <div className="card" style={{ padding: 20, background: 'var(--surface-muted)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
                           
-                          {/* 1. Fuel Slider */}
+                          {/* 1. Fuel Saving Slider */}
                           <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                              <label className="field-label" style={{ color: '#10b981' }}>Fuel Saving</label>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ fontWeight: 600, color: '#10b981' }}>{fuelSavingLiters.toFixed(2)} L</span>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                  ({((fuelSavingLiters/baseFuel)*100).toFixed(1)}%)
-                                </span>
-                              </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <label className="field-label" style={{ color: '#10b981', margin: 0, fontSize: '0.75rem' }}>Fuel Saving</label>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981' }}>{fuelSavingLiters.toFixed(2)} L</span>
                             </div>
                             <input 
                               type="range" 
                               min="0" 
-                              max={baseFuel * 0.15} // Cap at 15% saving
-                              step="0.01"
+                              max={baseFuel * 0.15}
+                              step="any"
                               value={fuelSavingLiters}
                               onChange={(e) => {
                                 const v = parseFloat(e.target.value);
                                 setFuelSavingLiters(v);
                                 updateStorage('fuelSavingPerLap', v);
                               }}
-                              style={{ width: '100%', accentColor: '#10b981' }}
+                              style={{ width: '100%', accentColor: '#10b981', cursor: 'grab' }}
                             />
-                            {/* Extra Lap Badge */}
-                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                               <div style={{ 
-                                 background: lapsGained >= 1.0 ? '#10b981' : 'rgba(255,255,255,0.1)',
-                                 color: lapsGained >= 1.0 ? '#fff' : 'var(--text-muted)',
-                                 padding: '2px 8px',
-                                 borderRadius: 4,
-                                 fontSize: '0.7rem',
-                                 fontWeight: 600,
-                                 display: 'inline-flex',
-                                 alignItems: 'center',
-                                 gap: 4
-                               }}>
-                                 {lapsGained >= 1.0 ? '🔓 UNLOCKED' : 'POTENTIAL'}
-                                 <span style={{ opacity: 0.8 }}>+{lapsGained.toFixed(1)} Laps</span>
-                               </div>
-                               {lapsGained >= 1.0 && <span style={{ fontSize: '0.7rem', color: '#10b981' }}>Stint extended to {saveLaps} laps!</span>}
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                              {((fuelSavingLiters/baseFuel)*100).toFixed(1)}% reduction
                             </div>
                           </div>
-                          {/* 2. Pace Slider */}
+
+                          {/* 2. Pace Delta Slider */}
                           <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                              <label className="field-label" style={{ color: 'var(--text)' }}>Target Pace Delta</label>
-                              <span style={{ fontWeight: 600 }}>+{paceDelta.toFixed(2)} s</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Pace Delta</label>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{paceDelta.toFixed(2)} s</span>
                             </div>
                             <input 
                               type="range" 
                               min="0" 
                               max="2.5" 
-                              step="0.05"
+                              step="any"
                               value={paceDelta}
                               onChange={(e) => {
                                 const v = parseFloat(e.target.value);
                                 setPaceDelta(v);
                                 updateStorage('fuelSaveOffset', v);
                               }}
-                              style={{ width: '100%' }}
+                              style={{ width: '100%', cursor: 'grab' }}
                             />
-                            <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Drag the <strong style={{ color: '#10b981' }}>Green Line</strong> on graph to adjust
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                              Time cost per lap
+                            </div>
+                          </div>
+
+                          {/* 3. Fuel Burn Slider */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Fuel Burn Effect</label>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>-{fuelBurnFactor.toFixed(2)} s</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="0" 
+                              max="0.1" 
+                              step="any"
+                              value={fuelBurnFactor}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                setFuelBurnFactor(v);
+                                updateStorage('fuelBurnFactor', v);
+                              }}
+                              style={{ width: '100%', cursor: 'grab' }}
+                            />
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                              Faster as fuel burns
+                            </div>
+                          </div>
+
+                          {/* 4. Tire Deg Slider */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Tire Deg Effect</label>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{tireDegFactor.toFixed(2)} s</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="0" 
+                              max="0.2" 
+                              step="any"
+                              value={tireDegFactor}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                setTireDegFactor(v);
+                                updateStorage('tireDegFactor', v);
+                              }}
+                              style={{ width: '100%', cursor: 'grab' }}
+                            />
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                              Slower as tires wear
                             </div>
                           </div>
                         </div>
+
+                        {/* Extra Laps Result */}
+                        <div style={{ 
+                          marginTop: 20, 
+                          paddingTop: 16, 
+                          borderTop: '1px solid var(--border)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 16
+                        }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 12,
+                            padding: '8px 16px',
+                            background: fullLapsGained >= 1 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
+                            borderRadius: 8,
+                            border: fullLapsGained >= 1 ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)'
+                          }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Extra Laps:</span>
+                            <span style={{ 
+                              fontSize: '1.1rem', 
+                              fontWeight: 700, 
+                              color: fullLapsGained >= 1 ? '#10b981' : 'var(--text)' 
+                            }}>
+                              +{lapsGained.toFixed(2)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Stint: <span style={{ color: '#0ea5e9' }}>{stdLaps}</span> → <span style={{ color: '#10b981', fontWeight: 600 }}>{saveLaps}</span> laps
+                            {fullLapsGained >= 1 && (
+                              <span style={{ marginLeft: 8, color: '#10b981' }}>
+                                (+{fullLapsGained} full {fullLapsGained === 1 ? 'lap' : 'laps'})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* --- ROW 3: GRAPH --- */}
+                      <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                         {/* Graph SVG */}
                         <div 
                           style={{ position: 'relative', height: height, background: 'var(--surface-muted)', cursor: isDragging ? 'grabbing' : 'default' }}
@@ -1438,14 +1493,23 @@ const PlannerApp = () => {
                                 {/* End Dot */}
                                 <circle cx={scaleX(savePoints.length-1)} cy={scaleY(savePoints[savePoints.length-1])} r="5" fill="#10b981" stroke="#fff" strokeWidth="2" />
                               </g>
-                           </svg>
-                           {/* Hover Info (Optional, simple implementation) */}
-                           <div style={{ position: 'absolute', top: 10, right: 20, pointerEvents: 'none', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: 4 }}>
-                              <span style={{ color: '#10b981', fontSize: '0.75rem' }}>Saver Line is Draggable ↕</span>
-                           </div>
+                          </svg>
+                          {/* Subtle drag hint */}
+                          <div style={{ 
+                            position: 'absolute', 
+                            top: 8, 
+                            right: 12, 
+                            pointerEvents: 'none', 
+                            fontSize: '0.65rem',
+                            color: 'var(--text-muted)',
+                            opacity: 0.5
+                          }}>
+                             ↕ Drag green line to adjust pace
+                          </div>
                         </div>
                       </div>
-                      {/* --- ROW 3: ANALYSIS --- */}
+
+                      {/* --- ROW 4: ANALYSIS --- */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
                         
                         {/* Card A: Gap at Box */}
@@ -1456,19 +1520,48 @@ const PlannerApp = () => {
                              <span style={{ fontSize: '1rem', color: '#ef4444' }}>sec</span>
                            </div>
                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '8px 0 0 0' }}>
-                             You will lose {timeLostAtBox.toFixed(1)}s over {lapsForComparison} laps compared to standard pace.
+                             Time lost over {lapsForComparison} laps compared to standard pace.
                            </p>
                         </div>
-                        {/* Card B: Cost of Saving */}
+
+                        {/* Card B: Strategy ROI - Expanded */}
                         <div className="card">
                            <div className="stat-label" style={{ marginBottom: 12 }}>Strategy ROI</div>
-                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Fuel Saved:</span>
-                              <span style={{ fontWeight: 600, color: '#10b981' }}>{fuelSavedTotal.toFixed(2)} L</span>
+                           
+                           {/* Time Lost */}
+                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, padding: '8px 0', borderBottom: '1px dashed var(--border)' }}>
+                              <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Time Lost:</span>
+                              <span style={{ fontWeight: 600, color: '#ef4444' }}>-{timeLostAtBox.toFixed(1)} s</span>
                            </div>
-                           <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Cost:</span>
-                              <span style={{ fontWeight: 600, color: '#fff' }}>{costPerLiter.toFixed(2)}s <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>/ Liter</span></span>
+                           
+                           {/* Fuel Saved */}
+                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, padding: '8px 0', borderBottom: '1px dashed var(--border)' }}>
+                              <span style={{ fontSize: '0.85rem', color: '#10b981' }}>Fuel Saved:</span>
+                              <span style={{ fontWeight: 600, color: '#10b981' }}>+{fuelSavedTotal.toFixed(2)} L</span>
+                           </div>
+                           
+                           {/* Division Line Visual */}
+                           <div style={{ 
+                             display: 'flex', 
+                             justifyContent: 'space-between', 
+                             alignItems: 'center',
+                             padding: '12px 0', 
+                             marginTop: 4,
+                             background: 'rgba(56, 189, 248, 0.08)',
+                             borderRadius: 6,
+                             paddingLeft: 12,
+                             paddingRight: 12
+                           }}>
+                              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Cost per Liter:</span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                                <span style={{ fontWeight: 700, fontSize: '1.2rem', color: '#fff' }}>{costPerLiter.toFixed(2)}</span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>s / L</span>
+                              </div>
+                           </div>
+                           
+                           {/* Formula hint */}
+                           <div style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                             {timeLostAtBox.toFixed(1)}s ÷ {fuelSavedTotal.toFixed(2)}L = {costPerLiter.toFixed(2)}s/L
                            </div>
                         </div>
                       </div>
