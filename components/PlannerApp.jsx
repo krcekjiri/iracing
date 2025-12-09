@@ -1118,6 +1118,11 @@ const PlannerApp = () => {
                   const [fuelBurnFactor, setFuelBurnFactor] = useState(parseFloat(stintModelling.fuelBurnFactor) || 0.05);
                   const [tireDegFactor, setTireDegFactor] = useState(parseFloat(stintModelling.tireDegFactor) || 0.05);
                   
+                  // Cold Tire Penalties
+                  const [coldTireLap1, setColdTireLap1] = useState(parseFloat(stintModelling.coldTireLap1) ?? 3.5);
+                  const [coldTireLap2, setColdTireLap2] = useState(parseFloat(stintModelling.coldTireLap2) ?? 1.5);
+                  const [coldTireLap3, setColdTireLap3] = useState(parseFloat(stintModelling.coldTireLap3) ?? 0.5);
+                  
                   // Hover state for tooltip
                   const [hoverLap, setHoverLap] = useState(null);
                   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
@@ -1146,6 +1151,9 @@ const PlannerApp = () => {
                   const fullLapsGained = lapsGained >= 1.0 ? Math.floor(lapsGained) : 0;
                   const progressToNextLap = lapsGained - Math.floor(lapsGained);
                   
+                  // Calculate extra laps gained (for display in FUEL SAVED section)
+                  const extraLapsGained = saveLaps - stdLaps;
+                  
                   // Determine Graph X-Axis (Show whichever stint is longer, plus a buffer)
                   const graphLaps = Math.max(stdLaps, saveLaps) + 2;
 
@@ -1160,10 +1168,10 @@ const PlannerApp = () => {
                       // If car is out of fuel, stop generating points or flatline
                       if (lap > limit) break; 
                       let time = baseTime;
-                      // Cold Tire Phase (Laps 1-3) - Fixed Penalties
-                      if (lap === 1) time += 3.5;
-                      else if (lap === 2) time += 1.5;
-                      else if (lap === 3) time += 0.5;
+                      // Cold Tire Phase (Laps 1-3) - Configurable Penalties
+                      if (lap === 1) time += coldTireLap1;
+                      else if (lap === 2) time += coldTireLap2;
+                      else if (lap === 3) time += coldTireLap3;
                       else {
                         // Warm Phase (Lap 4+)
                         const lapsRunning = lap - 4; 
@@ -1180,8 +1188,8 @@ const PlannerApp = () => {
                     return points;
                   };
                   
-                  const stdPoints = useMemo(() => generatePoints(basePaceSeconds, false), [basePaceSeconds, stdLaps, fuelBurnFactor, tireDegFactor]);
-                  const savePoints = useMemo(() => generatePoints(basePaceSeconds, true), [basePaceSeconds, saveLaps, fuelBurnFactor, tireDegFactor, paceDelta]);
+                  const stdPoints = useMemo(() => generatePoints(basePaceSeconds, false), [basePaceSeconds, stdLaps, fuelBurnFactor, tireDegFactor, coldTireLap1, coldTireLap2, coldTireLap3]);
+                  const savePoints = useMemo(() => generatePoints(basePaceSeconds, true), [basePaceSeconds, saveLaps, fuelBurnFactor, tireDegFactor, paceDelta, coldTireLap1, coldTireLap2, coldTireLap3]);
                   
                   // -- 4. GRAPH INTERACTION --
                   const svgRef = useRef(null);
@@ -1506,7 +1514,7 @@ const PlannerApp = () => {
                               type="range" 
                               min={0} 
                               max={0.1} 
-                              step={0.01}
+                              step={0.001}
                               value={fuelBurnFactor}
                               onInput={(e) => setFuelBurnFactor(parseFloat(e.target.value))}
                               onChange={(e) => setFuelBurnFactor(parseFloat(e.target.value))}
@@ -1538,6 +1546,87 @@ const PlannerApp = () => {
                             />
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
                               Slower as tires wear
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* --- COLD TIRE PENALTIES (3 columns) --- */}
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(3, 1fr)', 
+                          gap: 24, 
+                          padding: 16, 
+                          background: 'rgba(0, 0, 0, 0.2)', 
+                          borderRadius: 8, 
+                          border: '1px solid var(--border)',
+                          marginTop: 16
+                        }}>
+                          {/* Lap 1 (Cold Tires) */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 1 (Cold Tires)</label>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{coldTireLap1.toFixed(1)} s</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min={0} 
+                              max={6} 
+                              step={0.1} 
+                              value={coldTireLap1} 
+                              onInput={(e) => setColdTireLap1(parseFloat(e.target.value))} 
+                              onChange={(e) => setColdTireLap1(parseFloat(e.target.value))} 
+                              onMouseUp={() => updateStorage('coldTireLap1', coldTireLap1)} 
+                              onTouchEnd={() => updateStorage('coldTireLap1', coldTireLap1)} 
+                              style={{ width: '100%', cursor: 'grab' }} 
+                            />
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                              Out lap penalty
+                            </div>
+                          </div>
+                          
+                          {/* Lap 2 (Warming) */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 2 (Warming)</label>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{coldTireLap2.toFixed(1)} s</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min={0} 
+                              max={3} 
+                              step={0.1} 
+                              value={coldTireLap2} 
+                              onInput={(e) => setColdTireLap2(parseFloat(e.target.value))} 
+                              onChange={(e) => setColdTireLap2(parseFloat(e.target.value))} 
+                              onMouseUp={() => updateStorage('coldTireLap2', coldTireLap2)} 
+                              onTouchEnd={() => updateStorage('coldTireLap2', coldTireLap2)} 
+                              style={{ width: '100%', cursor: 'grab' }} 
+                            />
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                              Tires warming up
+                            </div>
+                          </div>
+                          
+                          {/* Lap 3 (Near Optimal) */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 3 (Near Optimal)</label>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{coldTireLap3.toFixed(1)} s</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min={0} 
+                              max={1.5} 
+                              step={0.1} 
+                              value={coldTireLap3} 
+                              onInput={(e) => setColdTireLap3(parseFloat(e.target.value))} 
+                              onChange={(e) => setColdTireLap3(parseFloat(e.target.value))} 
+                              onMouseUp={() => updateStorage('coldTireLap3', coldTireLap3)} 
+                              onTouchEnd={() => updateStorage('coldTireLap3', coldTireLap3)} 
+                              style={{ width: '100%', cursor: 'grab' }} 
+                            />
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                              Almost at temp
                             </div>
                           </div>
                         </div>
@@ -1809,7 +1898,7 @@ const PlannerApp = () => {
                               +{fuelSavedTotal.toFixed(2)}L
                             </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                              Total fuel saved over <strong>{lapsForComparison} laps</strong>, enabling extended stint or safety margin.
+                              Total fuel saved over <strong>{lapsForComparison} laps</strong>{extraLapsGained > 0 ? <>, extending stint by <strong style={{ color: '#10b981' }}>+{extraLapsGained} lap{extraLapsGained > 1 ? 's' : ''}</strong></> : ', building safety margin'}.
                             </div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 8, opacity: 0.7 }}>
                               = {lapsForComparison} laps × {fuelSavingLiters.toFixed(2)}L saved/lap
