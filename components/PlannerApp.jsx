@@ -338,10 +338,10 @@ const PlannerApp = () => {
         }
       }
     } else {
-      setForm((prev) => ({
-        ...prev,
-        [field]: value === '' ? '' : value,
-      }));
+    setForm((prev) => ({
+      ...prev,
+      [field]: value === '' ? '' : value,
+    }));
     }
   };
 
@@ -1064,7 +1064,7 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              <strong>"What If" Sandbox:</strong> Model fuel saving trade-offs: see exactly how much you need to save per lap to gain an extra lap, and what it costs in lap time.
+              <strong>"What If" Sandbox:</strong> Model your stints to see exactly how much you need to save per lap to gain an extra lap, and what it costs in lap time.
             </p>
           </div>
           <div className="card">
@@ -1330,8 +1330,8 @@ const PlannerApp = () => {
                           {/* Standard Lap Time */}
                           <div>
                             <label className="field-label" style={{ marginBottom: 8 }}>Standard Lap Time</label>
-                            <input 
-                              type="text" 
+                            <input
+                              type="text"
                               className="input-field" 
                               value={basePaceInput}
                               onChange={(e) => setBasePaceInput(e.target.value)}
@@ -1342,7 +1342,7 @@ const PlannerApp = () => {
                           {/* Standard Fuel / Lap */}
                           <div>
                             <label className="field-label" style={{ marginBottom: 8 }}>Standard Fuel / Lap</label>
-                            <input 
+                            <input
                               type="text"
                               inputMode="decimal"
                               className="input-field" 
@@ -1359,7 +1359,7 @@ const PlannerApp = () => {
                           {/* Tank Capacity */}
                           <div>
                             <label className="field-label" style={{ marginBottom: 8 }}>Tank Capacity</label>
-                            <input 
+                            <input
                               type="text"
                               inputMode="decimal"
                               className="input-field" 
@@ -1376,7 +1376,7 @@ const PlannerApp = () => {
                           {/* Fuel Reserve */}
                           <div>
                             <label className="field-label" style={{ marginBottom: 8 }}>Fuel Reserve</label>
-                            <input 
+                            <input
                               type="text"
                               inputMode="decimal"
                               className="input-field" 
@@ -1390,9 +1390,9 @@ const PlannerApp = () => {
                               style={{ width: '100%' }}
                             />
                           </div>
+                          </div>
                         </div>
-                      </div>
-
+                        
                       {/* --- ROW 2: FUEL SAVING (HERO) + LAP TARGETS --- */}
                       <div className="card" style={{ padding: 20, background: 'var(--surface-muted)' }}>
                         <div style={{ 
@@ -1477,21 +1477,21 @@ const PlannerApp = () => {
                                         <span style={{ color: 'var(--text-muted)', opacity: 0.5 }}>—</span>
                                       )}
                                     </span>
-                                  </div>
+                            </div>
                                 );
                               });
                             })()}
+                            </div>
                           </div>
-                        </div>
-                        
+                          
                         {/* --- ROW 3: PHYSICS SLIDERS (3 columns) --- */}
-                        <div style={{ 
+                            <div style={{ 
                           display: 'grid', 
                           gridTemplateColumns: 'repeat(3, 1fr)', 
                           gap: 24,
                           padding: 16,
                           background: 'rgba(0, 0, 0, 0.2)',
-                          borderRadius: 8,
+                              borderRadius: 8, 
                           border: '1px solid var(--border)'
                         }}>
                           {/* Pace Delta Slider */}
@@ -1499,7 +1499,7 @@ const PlannerApp = () => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                               <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Pace Delta</label>
                               <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{paceDelta.toFixed(2)} s</span>
-                            </div>
+                              </div>
                             <input 
                               type="range" 
                               min={0} 
@@ -1514,7 +1514,7 @@ const PlannerApp = () => {
                             />
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
                               Time cost per lap
-                            </div>
+                              </div>
                           </div>
                           {/* Fuel Burn Slider */}
                           <div>
@@ -1560,10 +1560,10 @@ const PlannerApp = () => {
                               Slower as tires wear
                             </div>
                           </div>
-                        </div>
-                        
+                              </div>
+                              
                         {/* --- COLD TIRE PENALTIES (3 columns) --- */}
-                        <div style={{ 
+                              <div style={{ 
                           display: 'grid', 
                           gridTemplateColumns: 'repeat(3, 1fr)', 
                           gap: 24, 
@@ -1573,12 +1573,12 @@ const PlannerApp = () => {
                           border: '1px solid var(--border)',
                           marginTop: 16
                         }}>
-                          {/* Lap 1 (Cold Tires) */}
+                          {/* Lap 1 Lap Time */}
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 1 (Cold Tires)</label>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 1 Lap Time</label>
                               <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{coldTireLap1.toFixed(1)} s</span>
-                            </div>
+                                </div>
                             <input 
                               type="range" 
                               min={0} 
@@ -1593,15 +1593,15 @@ const PlannerApp = () => {
                             />
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
                               Out lap penalty
-                            </div>
-                          </div>
+                                </div>
+                                </div>
                           
-                          {/* Lap 2 (Warming) */}
-                          <div>
+                          {/* Lap 2 Lap Time */}
+                                <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 2 (Warming)</label>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 2 Lap Time</label>
                               <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{coldTireLap2.toFixed(1)} s</span>
-                            </div>
+                                </div>
                             <input 
                               type="range" 
                               min={0} 
@@ -1616,13 +1616,13 @@ const PlannerApp = () => {
                             />
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
                               Tires warming up
+                              </div>
                             </div>
-                          </div>
                           
-                          {/* Lap 3 (Near Optimal) */}
+                          {/* Lap 3 Lap Time */}
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 3 (Near Optimal)</label>
+                              <label className="field-label" style={{ margin: 0, fontSize: '0.75rem' }}>Lap 3 Lap Time</label>
                               <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>+{coldTireLap3.toFixed(1)} s</span>
                             </div>
                             <input 
@@ -1643,14 +1643,14 @@ const PlannerApp = () => {
                           </div>
                         </div>
                       </div>
-
+                      
                       {/* --- ROW 3: GRAPH + AVERAGES --- */}
                       <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
                         {/* Graph SVG */}
                         <div 
                           style={{ position: 'relative', height: height, flex: 1, background: 'var(--surface-muted)', cursor: isDragging ? 'grabbing' : 'crosshair' }}
-                          onMouseMove={handleMouseMove}
-                          onMouseUp={handleMouseUp}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
                           onMouseLeave={handleMouseLeave}
                           ref={svgRef}
                         >
@@ -1662,37 +1662,37 @@ const PlannerApp = () => {
                                 // Skip if outside visible area
                                 if (y < padding.top - 5 || y > height - padding.bottom + 5) return null;
                                 return (
-                                  <line 
+                              <line
                                     key={idx} 
-                                    x1={padding.left} 
+                                x1={padding.left}
                                     y1={y} 
-                                    x2={width - padding.right} 
+                                x2={width - padding.right}
                                     y2={y} 
                                     stroke="var(--border)" 
                                     strokeDasharray="4 4" 
                                     opacity={0.5}
-                                  />
-                                );
-                              })}
-                              
+                              />
+                            );
+                          })}
+
                               {/* Y-Axis Labels - using nice intervals */}
                               {yTicks.map((tickVal, idx) => {
                                 const y = scaleY(tickVal);
                                 // Skip if outside visible area or too close to edges
                                 if (y < padding.top + 5 || y > height - padding.bottom - 5) return null;
                                 return (
-                                  <text 
+                              <text
                                     key={idx} 
                                     x={padding.left - 8} 
                                     y={y + 3} 
-                                    fill="var(--text-muted)" 
+                                fill="var(--text-muted)"
                                     fontSize="9" 
-                                    textAnchor="end"
+                                textAnchor="end"
                                   >
                                     {formatLapTime(tickVal)}
-                                  </text>
-                                );
-                              })}
+                              </text>
+                            );
+                          })}
                               {/* X-Axis Labels */}
                               <text x={scaleX(0)} y={height - 5} fill="var(--text-muted)" fontSize="10" textAnchor="middle">L1</text>
                               <text x={scaleX(stdLaps - 1)} y={height - 5} fill="#0ea5e9" fontSize="10" textAnchor="middle" fontWeight="bold">L{stdLaps}</text>
@@ -1702,11 +1702,11 @@ const PlannerApp = () => {
                               
                               {/* Hover vertical line */}
                               {hoverLap !== null && hoverLap < Math.max(stdPoints.length, savePoints.length) && (
-                                <line
+                          <line
                                   x1={scaleX(hoverLap)}
-                                  y1={padding.top}
+                            y1={padding.top}
                                   x2={scaleX(hoverLap)}
-                                  y2={height - padding.bottom}
+                            y2={height - padding.bottom}
                                   stroke="rgba(255,255,255,0.3)"
                                   strokeWidth="1"
                                   strokeDasharray="4 4"
@@ -1740,8 +1740,20 @@ const PlannerApp = () => {
                            {hoverLap !== null && (stdPoints[hoverLap] !== undefined || savePoints[hoverLap] !== undefined) && (
                              <div style={{
                                position: 'absolute',
-                               left: hoverPos.x > 300 ? hoverPos.x - 180 : hoverPos.x + 12,
-                               top: Math.max(10, Math.min(hoverPos.y - 60, height - 120)),
+                               left: (() => {
+                                 const dotX = scaleX(hoverLap);
+                                 const tooltipWidth = 180;
+                                 // Position to the right if there's space, otherwise to the left
+                                 return dotX + tooltipWidth > width ? dotX - tooltipWidth - 12 : dotX + 12;
+                               })(),
+                               top: (() => {
+                                 // Use the lower of the two points (higher Y value = lower on screen)
+                                 const stdY = stdPoints[hoverLap] !== undefined ? scaleY(stdPoints[hoverLap]) : height;
+                                 const saveY = savePoints[hoverLap] !== undefined ? scaleY(savePoints[hoverLap]) : height;
+                                 const dotY = Math.max(stdY, saveY);
+                                 // Position tooltip above the dot
+                                 return Math.max(10, dotY - 100);
+                               })(),
                                background: 'rgba(0,0,0,0.9)',
                                border: '1px solid var(--border)',
                                borderRadius: 6,
@@ -1769,14 +1781,14 @@ const PlannerApp = () => {
                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Delta:</span>
                                    <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>+{(savePoints[hoverLap] - stdPoints[hoverLap]).toFixed(3)}s</span>
-                                 </div>
+                      </div>
                                )}
                               {stdCumulative[hoverLap] !== undefined && saveCumulative[hoverLap] !== undefined && (
                                 <>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginTop: 4 }}>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Gap:</span>
                                     <span style={{ fontSize: '0.65rem', color: '#ef4444' }}>-{(saveCumulative[hoverLap] - stdCumulative[hoverLap]).toFixed(1)}s</span>
-                                  </div>
+                      </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Elapsed:</span>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
@@ -1805,7 +1817,7 @@ const PlannerApp = () => {
                           }}>
                              ↕ Drag green line to adjust pace
                           </div>
-                        </div>
+                          </div>
                         
                         {/* Average Lap Time Panel - Right Side */}
                         <div style={{
@@ -1820,8 +1832,8 @@ const PlannerApp = () => {
                         }}>
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                             Stint Average
-                          </div>
-                          
+                        </div>
+                        
                           {/* Standard */}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                             <span style={{ fontSize: '0.7rem', color: '#0ea5e9' }}>Standard</span>
@@ -1867,9 +1879,9 @@ const PlannerApp = () => {
                               +{(saveAvgLapTime - stdAvgLapTime).toFixed(3)}s
                             </span>
                           </div>
+                          </div>
                         </div>
-                      </div>
-
+                        
                       {/* --- ROW 4: STRATEGY ROI (Enhanced) --- */}
                       <div className="card">
                         <div className="stat-label" style={{ marginBottom: 16 }}>Strategy ROI Analysis</div>
@@ -1894,10 +1906,10 @@ const PlannerApp = () => {
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 8, opacity: 0.7 }}>
                               = {lapsForComparison} laps × {paceDelta.toFixed(2)}s avg delta
                             </div>
-                          </div>
-                          
+                            </div>
+                            
                           {/* Right: The Reward */}
-                          <div style={{ 
+                            <div style={{ 
                             padding: 16, 
                             background: 'rgba(16, 185, 129, 0.05)', 
                             borderRadius: 8, 
@@ -1905,13 +1917,13 @@ const PlannerApp = () => {
                           }}>
                             <div style={{ fontSize: '0.75rem', color: '#10b981', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                               FUEL SAVED
-                            </div>
+                              </div>
                             <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#10b981', marginBottom: 8 }}>
                               +{fuelSavedTotal.toFixed(2)}L
-                            </div>
+                              </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
                               Total fuel saved over <strong>{lapsForComparison} laps</strong>{extraLapsGained > 0 ? <>, extending stint by <strong style={{ color: '#10b981' }}>+{extraLapsGained} lap{extraLapsGained > 1 ? 's' : ''}</strong></> : ', building safety margin'}.
-                            </div>
+                              </div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 8, opacity: 0.7 }}>
                               = {lapsForComparison} laps × {fuelSavingLiters.toFixed(2)}L saved/lap
                             </div>
@@ -1928,16 +1940,16 @@ const PlannerApp = () => {
                           justifyContent: 'space-between',
                           alignItems: 'center'
                         }}>
-                          <div>
+                              <div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Efficiency: Time Cost per Liter Saved</div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.7 }}>
                               {timeLostAtBox.toFixed(1)}s ÷ {fuelSavedTotal.toFixed(2)}L
+                              </div>
                             </div>
-                          </div>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff' }}>
                               {costPerLiter.toFixed(2)}
-                            </div>
+                          </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>seconds / liter</div>
                           </div>
                         </div>
