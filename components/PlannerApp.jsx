@@ -1119,9 +1119,21 @@ const PlannerApp = () => {
                   const [tireDegFactor, setTireDegFactor] = useState(parseFloat(stintModelling.tireDegFactor) || 0.05);
                   
                   // Cold Tire Penalties
-                  const [coldTireLap1, setColdTireLap1] = useState(parseFloat(stintModelling.coldTireLap1) ?? 3.5);
-                  const [coldTireLap2, setColdTireLap2] = useState(parseFloat(stintModelling.coldTireLap2) ?? 1.5);
-                  const [coldTireLap3, setColdTireLap3] = useState(parseFloat(stintModelling.coldTireLap3) ?? 0.5);
+                  const [coldTireLap1, setColdTireLap1] = useState(
+                    stintModelling.coldTireLap1 !== undefined && !isNaN(parseFloat(stintModelling.coldTireLap1))
+                      ? parseFloat(stintModelling.coldTireLap1)
+                      : 2.5
+                  );
+                  const [coldTireLap2, setColdTireLap2] = useState(
+                    stintModelling.coldTireLap2 !== undefined && !isNaN(parseFloat(stintModelling.coldTireLap2))
+                      ? parseFloat(stintModelling.coldTireLap2)
+                      : 1.5
+                  );
+                  const [coldTireLap3, setColdTireLap3] = useState(
+                    stintModelling.coldTireLap3 !== undefined && !isNaN(parseFloat(stintModelling.coldTireLap3))
+                      ? parseFloat(stintModelling.coldTireLap3)
+                      : 0.5
+                  );
                   
                   // Hover state for tooltip
                   const [hoverLap, setHoverLap] = useState(null);
