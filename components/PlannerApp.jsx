@@ -25,6 +25,7 @@ const PlannerApp = () => {
   
   const [form, setForm] = useState(() => loadFromStorage('form', defaultForm));
   const [confirmedForm, setConfirmedForm] = useState(() => loadFromStorage('form', defaultForm)); // Form used for calculations
+  const [showStrategyCalculated, setShowStrategyCalculated] = useState(false);
   const [drivers, setDrivers] = useState(() => loadFromStorage('drivers', [
     { id: Date.now(), name: 'John', timezone: 'UTC', color: '#0ea5e9' },
     { id: Date.now() + 1, name: 'Jack', timezone: 'UTC', color: '#8b5cf6' },
@@ -570,7 +571,16 @@ const PlannerApp = () => {
             value={clampedValue}
             onInput={handleSliderChange}
             onChange={handleSliderChange}
-            style={{ flex: 1, cursor: 'grab' }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.cursor = 'grabbing';
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.cursor = 'grab';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.cursor = 'grab';
+            }}
+            style={{ flex: 1, cursor: 'grab', WebkitAppearance: 'none', appearance: 'none' }}
           />
           <input
             type="number"
@@ -600,6 +610,14 @@ const PlannerApp = () => {
   const handleConfirmForm = () => {
     setConfirmedForm({ ...form });
     saveToStorage('form', form);
+    setShowStrategyCalculated(true);
+    // Show confirmation and switch to Strategy tab
+    setTimeout(() => {
+      setActiveTab('strategy');
+      setTimeout(() => {
+        setShowStrategyCalculated(false);
+      }, 3000);
+    }, 100);
   };
 
   return (
@@ -652,10 +670,7 @@ const PlannerApp = () => {
 
       {activeTab === 'setup' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Configure race duration, fuel parameters, and strategy mode settings. Click "Calculate Strategy" to update calculations.
-            </p>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
             <button
               onClick={handleConfirmForm}
               style={{
@@ -781,68 +796,125 @@ const PlannerApp = () => {
             <div className="card">
               <SectionHeading title="Strategy Modes" />
               
-              <div style={{ marginBottom: 16 }}>
-                <InputField
-                  label="Standard Lap Time"
-                  placeholder="MM:SS.sss"
-                  value={form.averageLapTime}
-                  onChange={handleInput('averageLapTime')}
-                  helpText="Baseline lap time for standard strategy."
+              {/* Standard (S) - Blue */}
+              <div style={{ 
+                marginBottom: 16, 
+                padding: '12px', 
+                borderRadius: 8, 
+                background: 'rgba(30, 167, 255, 0.08)', 
+                border: '1px solid rgba(30, 167, 255, 0.2)' 
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ 
+                    display: 'inline-block', 
+                    width: 20, 
+                    height: 20, 
+                    borderRadius: 4, 
+                    background: '#1ea7ff',
+                    flexShrink: 0
+                  }}></span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1ea7ff' }}>S - Standard</span>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <InputField
+                    label="Standard Lap Time"
+                    placeholder="MM:SS.sss"
+                    value={form.averageLapTime}
+                    onChange={handleInput('averageLapTime')}
+                    helpText="Baseline lap time for standard strategy."
+                  />
+                </div>
+                <SliderInput
+                  label="Standard Fuel / Lap"
+                  value={form.fuelPerLap}
+                  onChange={(val) => handleInput('fuelPerLap')(val)}
+                  min={0.1}
+                  max={10}
+                  step={0.01}
+                  suffix=" L"
+                  helpText="Fuel consumption for standard strategy."
                 />
               </div>
               
-              <SliderInput
-                label="Standard Fuel / Lap"
-                value={form.fuelPerLap}
-                onChange={(val) => handleInput('fuelPerLap')(val)}
-                min={0.1}
-                max={10}
-                step={0.01}
-                suffix=" L"
-                helpText="Fuel consumption for standard strategy."
-              />
-              
-              <div style={{ marginBottom: 16 }}>
-                <InputField
-                  label="Fuel-Saving Lap Time"
-                  placeholder="MM:SS.sss"
-                  value={form.fuelSavingLapTime}
-                  onChange={handleInput('fuelSavingLapTime')}
-                  helpText="Slower lap time when fuel saving (typically 0.2-0.5s slower)."
+              {/* Fuel-Saving (FS) - Green */}
+              <div style={{ 
+                marginBottom: 16, 
+                padding: '12px', 
+                borderRadius: 8, 
+                background: 'rgba(16, 185, 129, 0.08)', 
+                border: '1px solid rgba(16, 185, 129, 0.2)' 
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ 
+                    display: 'inline-block', 
+                    width: 20, 
+                    height: 20, 
+                    borderRadius: 4, 
+                    background: '#10b981',
+                    flexShrink: 0
+                  }}></span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>FS - Fuel-Saving</span>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <InputField
+                    label="Fuel-Saving Lap Time"
+                    placeholder="MM:SS.sss"
+                    value={form.fuelSavingLapTime}
+                    onChange={handleInput('fuelSavingLapTime')}
+                    helpText="Slower lap time when fuel saving (typically 0.2-0.5s slower)."
+                  />
+                </div>
+                <SliderInput
+                  label="Fuel-Saving Fuel / Lap"
+                  value={form.fuelSavingFuelPerLap}
+                  onChange={(val) => handleInput('fuelSavingFuelPerLap')(val)}
+                  min={0.1}
+                  max={10}
+                  step={0.01}
+                  suffix=" L"
+                  helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
                 />
               </div>
               
-              <SliderInput
-                label="Fuel-Saving Fuel / Lap"
-                value={form.fuelSavingFuelPerLap}
-                onChange={(val) => handleInput('fuelSavingFuelPerLap')(val)}
-                min={0.1}
-                max={10}
-                step={0.01}
-                suffix=" L"
-                helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
-              />
-              
-              <div style={{ marginBottom: 16 }}>
-                <InputField
-                  label="Extra Fuel-Saving Lap Time"
-                  placeholder="MM:SS.sss"
-                  value={form.extraFuelSavingLapTime}
-                  onChange={handleInput('extraFuelSavingLapTime')}
-                  helpText="Slowest lap time for maximum fuel efficiency (typically 0.3-0.5s slower than fuel-saving)."
+              {/* Extra Fuel-Saving (EFS) - Yellow/Amber */}
+              <div style={{ 
+                marginBottom: 16, 
+                padding: '12px', 
+                borderRadius: 8, 
+                background: 'rgba(234, 179, 8, 0.08)', 
+                border: '1px solid rgba(234, 179, 8, 0.2)' 
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ 
+                    display: 'inline-block', 
+                    width: 20, 
+                    height: 20, 
+                    borderRadius: 4, 
+                    background: '#eab308',
+                    flexShrink: 0
+                  }}></span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#eab308' }}>EFS - Extra Fuel-Saving</span>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <InputField
+                    label="Extra Fuel-Saving Lap Time"
+                    placeholder="MM:SS.sss"
+                    value={form.extraFuelSavingLapTime}
+                    onChange={handleInput('extraFuelSavingLapTime')}
+                    helpText="Slowest lap time for maximum fuel efficiency (typically 0.3-0.5s slower than fuel-saving)."
+                  />
+                </div>
+                <SliderInput
+                  label="Extra Fuel-Saving Fuel / Lap"
+                  value={form.extraFuelSavingFuelPerLap}
+                  onChange={(val) => handleInput('extraFuelSavingFuelPerLap')(val)}
+                  min={0.1}
+                  max={10}
+                  step={0.01}
+                  suffix=" L"
+                  helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
                 />
               </div>
-              
-              <SliderInput
-                label="Extra Fuel-Saving Fuel / Lap"
-                value={form.extraFuelSavingFuelPerLap}
-                onChange={(val) => handleInput('extraFuelSavingFuelPerLap')(val)}
-                min={0.1}
-                max={10}
-                step={0.01}
-                suffix=" L"
-                helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
-              />
               
               <div style={{ 
                 marginTop: 16, 
@@ -862,16 +934,35 @@ const PlannerApp = () => {
 
 
       {activeTab === 'strategy' && (
-        <StrategyTab
-          form={confirmedForm}
-          standardResult={standardResult}
-          fuelSavingResult={fuelSavingResult}
-          strategyConfigs={strategyConfigs}
-          selectedStrategy={selectedStrategy}
-          setSelectedStrategy={setSelectedStrategy}
-          strategyRecommendation={strategyRecommendation}
-          reservePerStint={reservePerStint}
-        />
+        <div className="tab-content">
+          {showStrategyCalculated && (
+            <div style={{ 
+              marginBottom: 16, 
+              padding: '12px 16px', 
+              background: 'rgba(16, 185, 129, 0.15)', 
+              borderRadius: 8, 
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <span style={{ fontSize: '1.2rem' }}>✓</span>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#10b981', fontWeight: 500 }}>
+                Strategy calculated successfully! View your results below.
+              </p>
+            </div>
+          )}
+          <StrategyTab
+            form={confirmedForm}
+            standardResult={standardResult}
+            fuelSavingResult={fuelSavingResult}
+            strategyConfigs={strategyConfigs}
+            selectedStrategy={selectedStrategy}
+            setSelectedStrategy={setSelectedStrategy}
+            strategyRecommendation={strategyRecommendation}
+            reservePerStint={reservePerStint}
+          />
+        </div>
       )}
 
       {/* Schedule tab content hidden in initial version */}
@@ -926,11 +1017,6 @@ const PlannerApp = () => {
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Model pit stop times by configuring tire changes, fuel amounts, and driver swaps. See which service is the bottleneck and optimize your pit strategy.
-            </p>
-          </div>
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.3)' }}>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              ℹ️ <strong>Tank Capacity</strong>, <strong>Fuel BoP</strong>, and <strong>Fuel Reserve</strong> values are taken from the <strong>Setup</strong> tab.
             </p>
           </div>
           <div className="card">
@@ -2144,6 +2230,11 @@ const PlannerApp = () => {
                 );
               }
             })()}
+          </div>
+          <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.3)' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              ℹ️ <strong>Tank Capacity</strong>, <strong>Fuel BoP</strong>, and <strong>Fuel Reserve</strong> values are taken from the <strong>Setup</strong> tab.
+            </p>
           </div>
         </div>
       )}
