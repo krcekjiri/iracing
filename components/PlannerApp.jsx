@@ -322,6 +322,20 @@ const PlannerApp = () => {
             [field]: numValue,
           }));
         }
+      } else if (field === 'tankCapacity' || field === 'fuelPerLap' || field === 'fuelSavingFuelPerLap' || field === 'extraFuelSavingFuelPerLap') {
+        // Prevent zero or negative values for critical fuel calculations to avoid division by zero
+        const numValue = parseFloat(value);
+        if (value === '' || isNaN(numValue)) {
+          setForm((prev) => ({
+            ...prev,
+            [field]: value === '' ? '' : (field === 'tankCapacity' ? 100 : 3.0),
+          }));
+        } else {
+          setForm((prev) => ({
+            ...prev,
+            [field]: Math.max(0.01, numValue), // Ensure minimum value to prevent division by zero
+          }));
+        }
       } else {
         const numValue = parseFloat(value);
         if (value === '' || isNaN(numValue)) {
@@ -446,12 +460,13 @@ const PlannerApp = () => {
         >
           Strategy
         </button>
-        <button
+        {/* Schedule tab hidden in initial version */}
+        {/* <button
           className={activeTab === 'schedule' ? 'active' : ''}
           onClick={() => setActiveTab('schedule')}
         >
           Schedule <span style={{ fontSize: '0.7rem', opacity: 0.7, marginLeft: '4px' }}>(WIP)</span>
-        </button>
+        </button> */}
         <button
           className={activeTab === 'lap-times' ? 'active' : ''}
           onClick={() => setActiveTab('lap-times')}
@@ -476,150 +491,71 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Configure race duration, session timing, fuel parameters, and strategy mode settings. These values are used to calculate optimal strategy and stint planning.
+              Configure race duration, fuel parameters, and strategy mode settings. These values are used to calculate optimal strategy and stint planning.
             </p>
           </div>
           <div className="inputs-grid">
-        <div className="card">
-          <SectionHeading title="Race Parameters" />
-          <InputField
-            label="Race Duration"
-            suffix="min"
-            type="number"
-            value={form.raceDurationMinutes}
-            onChange={handleInput('raceDurationMinutes')}
-            helpText="Scheduled race length from the event info. Determines total laps when combined with lap time."
-          />
-          <InputField
-            label="Session Start (GMT)"
-            type="time"
-            value={raceStartGMTTime}
-            onChange={(e) => setRaceStartGMTTime(e.target.value)}
-            step="1"
-            helpText="The time when the session starts in GMT/UTC (HH:MM:SS)."
-          />
-          <InputField
-            label="Session Start (Game)"
-            type="time"
-            value={raceStartGameTime}
-            onChange={(e) => setRaceStartGameTime(e.target.value)}
-            step="1"
-            helpText="The time when the session starts in the game/simulator (HH:MM:SS)."
-          />
-          <div>
-            <label className="field-label" style={{ fontSize: '0.75rem', marginBottom: 2, display: 'block' }}>
-              Delay to First Stint
-            </label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-              <div className="toggle-group">
-                <button
-                  className={delayInputMode === 'manual' ? 'active' : ''}
-                  onClick={() => setDelayInputMode('manual')}
-                  style={{ fontSize: '0.75rem', padding: '4px 12px' }}
-                >
-                  Manual
-                </button>
-                <button
-                  className={delayInputMode === 'log' ? 'active' : ''}
-                  onClick={() => setDelayInputMode('log')}
-                  style={{ fontSize: '0.75rem', padding: '4px 12px' }}
-                >
-                  Log
-                </button>
-              </div>
-            </div>
-            {delayInputMode === 'manual' ? (
-              <input
-                type="text"
-                placeholder="MM:SS"
-                value={delayTime}
-                onChange={(e) => setDelayTime(e.target.value)}
-                style={{ width: '100%', padding: '4px 6px', fontSize: '0.75rem' }}
+            <div className="card">
+              <SectionHeading title="Race Parameters" />
+              <InputField
+                label="Race Duration"
+                suffix="min"
+                type="number"
+                value={form.raceDurationMinutes}
+                onChange={handleInput('raceDurationMinutes')}
+                helpText="Scheduled race length from the event info. Determines total laps when combined with lap time."
               />
-            ) : (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button
-                  onClick={() => {
-                    if (raceStartGMT) {
-                      const now = new Date();
-                      const gmtTime = parseTimeOnly(raceStartGMTTime);
-                      if (gmtTime) {
-                        const gmtDate = new Date();
-                        gmtDate.setHours(gmtTime.hours, gmtTime.minutes, gmtTime.seconds || 0, 0);
-                        const diffMs = now.getTime() - gmtDate.getTime();
-                        if (diffMs > 0) {
-                          const diffMins = Math.floor(diffMs / 60000);
-                          const diffSecs = Math.floor((diffMs % 60000) / 1000);
-                          setDelayTime(`${diffMins}:${diffSecs.toString().padStart(2, '0')}`);
-                        }
-                      }
-                    }
-                  }}
-                  className="secondary-button"
-                  style={{ fontSize: '0.75rem', padding: '4px 12px' }}
-                >
-                  Log Now
-                </button>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {delayTime || 'Not logged'}
-                </span>
-              </div>
-            )}
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>
-              Delay between the start of the session and the start of the first stint (MM:SS format). Can include practice, quali, formation lap.
-            </p>
-          </div>
-        </div>
+            </div>
 
-        <div className="card">
-          <SectionHeading title="Fuel and Pit Parameters" />
-          <InputField
-            label="Tank Capacity"
-            suffix="L"
-            type="number"
-            value={form.tankCapacity}
-            onChange={handleInput('tankCapacity')}
-            helpText="Base fuel tank capacity. The effective capacity is reduced by Fuel BoP percentage."
-          />
-          <InputField
-            label="Fuel BoP"
-            suffix="%"
-            type="number"
-            value={form.fuelBoP || 0}
-            onChange={handleInput('fuelBoP')}
-            step="0.01"
-            helpText="Balance of Performance adjustment. Percentage reduction to fuel tank capacity (e.g., 0.25% = 0.25). Applied as tank capacity × (1 - BoP/100)."
-          />
-          <InputField
-            label="Fuel Reserve"
-            suffix="L"
-            type="number"
-            value={form.fuelReserveLiters}
-            onChange={handleInput('fuelReserveLiters')}
-            step="0.1"
-            helpText="Extra buffer you want to keep in the tank at each stop (e.g., 0.3 L). Added on top of calculated need."
-          />
-          <InputField
-            label="Formation Lap Fuel"
-            suffix="L"
-            type="number"
-            value={form.formationLapFuel}
-            onChange={handleInput('formationLapFuel')}
-            step="0.1"
-            helpText="Fuel consumed during formation lap. This reduces available fuel for Stint 1, which may decrease the number of laps possible in the first stint."
-          />
-          <InputField
-            label="Pit Lane Delta"
-            suffix="sec"
-            type="number"
-            value={form.pitLaneDeltaSeconds}
-            onChange={handleInput('pitLaneDeltaSeconds')}
-            helpText="Time from pit entry to exit when just driving through. Already accounts for the shorter lane distance."
-          />
-        </div>
+            <div className="card">
+              <SectionHeading title="Fuel and Pit Parameters" />
+              <InputField
+                label="Tank Capacity"
+                suffix="L"
+                type="number"
+                value={form.tankCapacity}
+                onChange={handleInput('tankCapacity')}
+                helpText="Base fuel tank capacity. The effective capacity is reduced by Fuel BoP percentage."
+              />
+              <InputField
+                label="Fuel BoP"
+                suffix="%"
+                type="number"
+                value={form.fuelBoP || 0}
+                onChange={handleInput('fuelBoP')}
+                step="0.01"
+                helpText="Balance of Performance adjustment. Percentage reduction to fuel tank capacity (e.g., 0.25% = 0.25). Applied as tank capacity × (1 - BoP/100)."
+              />
+              <InputField
+                label="Fuel Reserve"
+                suffix="L"
+                type="number"
+                value={form.fuelReserveLiters}
+                onChange={handleInput('fuelReserveLiters')}
+                step="0.1"
+                helpText="Extra buffer you want to keep in the tank at each stop (e.g., 0.3 L). Added on top of calculated need."
+              />
+              <InputField
+                label="Formation Lap Fuel"
+                suffix="L"
+                type="number"
+                value={form.formationLapFuel}
+                onChange={handleInput('formationLapFuel')}
+                step="0.1"
+                helpText="Fuel consumed during formation lap. This reduces available fuel for Stint 1, which may decrease the number of laps possible in the first stint."
+              />
+              <InputField
+                label="Pit Lane Delta"
+                suffix="sec"
+                type="number"
+                value={form.pitLaneDeltaSeconds}
+                onChange={handleInput('pitLaneDeltaSeconds')}
+                helpText="Time from pit entry to exit when just driving through. Already accounts for the shorter lane distance."
+              />
+            </div>
 
-        <div className="card">
-          <SectionHeading title="Strategy Modes" />
+            <div className="card">
+              <SectionHeading title="Strategy Modes" />
           <div className="input-row">
             <InputField
               label="Standard Lap Time"
@@ -683,10 +619,8 @@ const PlannerApp = () => {
             fontSize: '0.8rem',
             color: 'var(--text-muted)',
           }}>
-            💡 Fine-tune lap times and fuel consumption for each stint in <strong style={{ color: '#38bdf8' }}>Stint Model</strong> tab.
-          </div>
-        </div>
-
+              💡 Fine-tune lap times and fuel consumption for each stint in <strong style={{ color: '#38bdf8' }}>Stint Model</strong> tab.
+            </div>
           </div>
         </div>
       )}
@@ -705,7 +639,8 @@ const PlannerApp = () => {
         />
       )}
 
-      {activeTab === 'schedule' && (
+      {/* Schedule tab content hidden in initial version */}
+      {/* {activeTab === 'schedule' && (
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -749,13 +684,18 @@ const PlannerApp = () => {
         ) : null}
           </div>
         </div>
-      )}
+      )} */}
 
       {activeTab === 'sandbox' && (
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Model pit stop times by configuring tire changes, fuel amounts, and driver swaps. See which service is the bottleneck and optimize your pit strategy.
+            </p>
+          </div>
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.3)' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              ℹ️ <strong>Tank Capacity</strong>, <strong>Fuel BoP</strong>, and <strong>Fuel Reserve</strong> values are taken from the <strong>Setup</strong> tab.
             </p>
           </div>
           <div className="card">
