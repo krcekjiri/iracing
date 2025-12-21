@@ -17,7 +17,7 @@ const ModeTag = ({ mode, count }) => {
   const modeStyles = {
     std: { bg: 'rgba(59, 130, 246, 0.2)', col: '#3b82f6', bord: 'rgba(59, 130, 246, 0.3)' },
     fs: { bg: 'rgba(52, 211, 153, 0.2)', col: '#34d399', bord: 'rgba(52, 211, 153, 0.3)' },
-    efs: { bg: 'rgba(234, 179, 8, 0.2)', col: '#eab308', bord: 'rgba(234, 179, 8, 0.3)' },
+    efs: { bg: 'rgba(168, 85, 247, 0.2)', col: '#a855f7', bord: 'rgba(168, 85, 247, 0.3)' },
   };
   
   const style = modeStyles[mode?.toLowerCase()] || modeStyles.std;
