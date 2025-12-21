@@ -24,6 +24,7 @@ const PlannerApp = () => {
   };
   
   const [form, setForm] = useState(() => loadFromStorage('form', defaultForm));
+  const [confirmedForm, setConfirmedForm] = useState(() => loadFromStorage('form', defaultForm)); // Form used for calculations
   const [drivers, setDrivers] = useState(() => loadFromStorage('drivers', [
     { id: Date.now(), name: 'John', timezone: 'UTC', color: '#0ea5e9' },
     { id: Date.now() + 1, name: 'Jack', timezone: 'UTC', color: '#8b5cf6' },
@@ -109,12 +110,12 @@ const PlannerApp = () => {
   const standardResult = useMemo(() => {
     // #region agent log
     try {
-      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:103',message:'standardResult useMemo entry',data:{tankCapacity:form.tankCapacity,tankCapacityType:typeof form.tankCapacity,tankCapacityNum:Number(form.tankCapacity)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      console.log('[DEBUG] standardResult useMemo entry', {tankCapacity: form.tankCapacity, tankCapacityType: typeof form.tankCapacity, tankCapacityNum: Number(form.tankCapacity)});
+      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:103',message:'standardResult useMemo entry',data:{tankCapacity:confirmedForm.tankCapacity,tankCapacityType:typeof confirmedForm.tankCapacity,tankCapacityNum:Number(confirmedForm.tankCapacity)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      console.log('[DEBUG] standardResult useMemo entry', {tankCapacity: confirmedForm.tankCapacity, tankCapacityType: typeof confirmedForm.tankCapacity, tankCapacityNum: Number(confirmedForm.tankCapacity)});
     } catch(e) { console.error('[DEBUG] Log error:', e); }
     // #endregion
     try {
-      const result = computePlan(form, 'standard');
+      const result = computePlan(confirmedForm, 'standard');
       // #region agent log
       try {
         fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:107',message:'standardResult useMemo success',data:{hasErrors:!!result.errors,errorCount:result.errors?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
@@ -131,13 +132,13 @@ const PlannerApp = () => {
       // #endregion
       throw error;
     }
-  }, [form]);
+  }, [confirmedForm]);
   const fuelSavingResult = useMemo(() => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:116',message:'fuelSavingResult useMemo entry',data:{tankCapacity:form.tankCapacity},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:116',message:'fuelSavingResult useMemo entry',data:{tankCapacity:confirmedForm.tankCapacity},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
     // #endregion
     try {
-      const result = computePlan(form, 'fuel-saving');
+      const result = computePlan(confirmedForm, 'fuel-saving');
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:120',message:'fuelSavingResult useMemo success',data:{hasErrors:!!result.errors},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
@@ -148,7 +149,7 @@ const PlannerApp = () => {
       // #endregion
       throw error;
     }
-  }, [form]);
+  }, [confirmedForm]);
   const withAlpha = (hex, alpha = '33') => {
     if (!hex || typeof hex !== 'string') return hex;
     const normalized = hex.replace('#', '');
@@ -179,7 +180,7 @@ const PlannerApp = () => {
     return key === topStrategyKey ? 'Optimal' : '';
   };
   const result = standardResult; // Keep for backward compatibility
-  const reservePerStint = Number(form.fuelReserveLiters) || 0;
+  const reservePerStint = Number(confirmedForm.fuelReserveLiters) || 0;
   const activeStrategyDef = strategyConfigs.find((entry) => entry.key === selectedStrategy) || strategyConfigs[0];
   const activeStrategyColor = activeStrategyDef?.color || '#38bdf8';
   const plannerCardStyle = {
@@ -504,7 +505,7 @@ const PlannerApp = () => {
     }));
   };
 
-  // SliderInput Component
+  // SliderInput Component - Compact version with tooltip
   const SliderInput = ({ 
     label, 
     value, 
@@ -543,26 +544,34 @@ const PlannerApp = () => {
     };
 
     return (
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>
-            {label}
-          </label>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>
+              {label}
+            </label>
+            {helpText && (
+              <span className="help-badge" tabIndex={0}>
+                <span className="help-icon">?</span>
+                <span className="help-tooltip">{typeof helpText === 'function' ? helpText(clampedValue) : helpText}</span>
+              </span>
+            )}
+          </div>
           <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--accent)' }}>
             {formatValue(clampedValue)}{suffix}
           </span>
         </div>
-        <input 
-          type="range" 
-          min={min} 
-          max={max} 
-          step={step}
-          value={clampedValue}
-          onInput={handleSliderChange}
-          onChange={handleSliderChange}
-          style={{ width: '100%', cursor: 'grab', marginBottom: 8 }}
-        />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input 
+            type="range" 
+            min={min} 
+            max={max} 
+            step={step}
+            value={clampedValue}
+            onInput={handleSliderChange}
+            onChange={handleSliderChange}
+            style={{ flex: 1, cursor: 'grab' }}
+          />
           <input
             type="number"
             min={min}
@@ -572,8 +581,8 @@ const PlannerApp = () => {
             onChange={handleInputChange}
             onBlur={handleInputBlur}
             style={{ 
-              width: '100px', 
-              padding: '6px 8px',
+              width: '80px', 
+              padding: '4px 6px',
               fontSize: '0.85rem',
               background: 'var(--surface-muted)',
               border: '1px solid var(--border)',
@@ -581,15 +590,16 @@ const PlannerApp = () => {
               color: 'var(--text)'
             }}
           />
-          {suffix && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{suffix}</span>}
+          {suffix && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', minWidth: '20px' }}>{suffix}</span>}
         </div>
-        {helpText && (
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>
-            {typeof helpText === 'function' ? helpText(clampedValue) : helpText}
-          </p>
-        )}
       </div>
     );
+  };
+
+  // Handle confirmation - copy draft form to confirmed form
+  const handleConfirmForm = () => {
+    setConfirmedForm({ ...form });
+    saveToStorage('form', form);
   };
 
   return (
@@ -642,10 +652,35 @@ const PlannerApp = () => {
 
       {activeTab === 'setup' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Configure race duration, fuel parameters, and strategy mode settings. These values are used to calculate optimal strategy and stint planning.
+              Configure race duration, fuel parameters, and strategy mode settings. Click "Calculate Strategy" to update calculations.
             </p>
+            <button
+              onClick={handleConfirmForm}
+              style={{
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
+                border: 'none',
+                borderRadius: 8,
+                color: '#fff',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(56, 189, 248, 0.3)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = 'translateY(-1px)';
+                e.target.style.boxShadow = '0 6px 16px rgba(56, 189, 248, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 4px 12px rgba(56, 189, 248, 0.3)';
+              }}
+            >
+              Calculate Strategy
+            </button>
           </div>
           <div className="inputs-grid">
             {/* Combined Race & Fuel Parameters */}
@@ -682,7 +717,7 @@ const PlannerApp = () => {
                   } else {
                     timeStr = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
                   }
-                  return `Scheduled race length: ${timeStr} (${v} minutes). 10-minute increments. Determines total laps when combined with lap time.`;
+                  return `Scheduled race length: ${timeStr} (${v} minutes). 10-minute increments.`;
                 }}
               />
               
@@ -746,7 +781,7 @@ const PlannerApp = () => {
             <div className="card">
               <SectionHeading title="Strategy Modes" />
               
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 16 }}>
                 <InputField
                   label="Standard Lap Time"
                   placeholder="MM:SS.sss"
@@ -767,7 +802,7 @@ const PlannerApp = () => {
                 helpText="Fuel consumption for standard strategy."
               />
               
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 16 }}>
                 <InputField
                   label="Fuel-Saving Lap Time"
                   placeholder="MM:SS.sss"
@@ -788,7 +823,7 @@ const PlannerApp = () => {
                 helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
               />
               
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 16 }}>
                 <InputField
                   label="Extra Fuel-Saving Lap Time"
                   placeholder="MM:SS.sss"
@@ -828,7 +863,7 @@ const PlannerApp = () => {
 
       {activeTab === 'strategy' && (
         <StrategyTab
-          form={form}
+          form={confirmedForm}
           standardResult={standardResult}
           fuelSavingResult={fuelSavingResult}
           strategyConfigs={strategyConfigs}
