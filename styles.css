@@ -1,17 +1,17 @@
 :root {
   color-scheme: dark;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: #020b16;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #1d1d26;
   color: #ecf4ff;
-  --surface: #07182c;
-  --surface-muted: #0b1e36;
-  --surface-highlight: #0f2744;
+  --surface: #252530;
+  --surface-muted: #2a2a35;
+  --surface-highlight: #2f2f3a;
   --accent: #fbbf24;
   --accent-strong: #f59e0b;
   --accent-soft: rgba(251, 191, 36, 0.2);
   --danger: #ff6b81;
   --text-muted: #9db7d8;
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.1);
   --glow: 0 12px 30px rgba(251, 191, 36, 0.25);
 }
 
@@ -22,7 +22,7 @@
 body {
   min-height: 100vh;
   margin: 0;
-  background: #020b16;
+  background: #1d1d26;
   display: flex;
   justify-content: center;
   padding: 32px;
@@ -34,7 +34,7 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: linear-gradient(135deg, rgba(2, 11, 22, 0.75), rgba(2, 11, 22, 0.5)), url('https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=2000&q=80');
+  background-image: linear-gradient(135deg, rgba(29, 29, 38, 0.75), rgba(29, 29, 38, 0.5)), url('https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=2000&q=80');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
@@ -47,7 +47,7 @@ body::after {
   content: '';
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at top, rgba(12, 31, 53, 0.5), rgba(2, 11, 22, 0.85));
+  background: radial-gradient(circle at top, rgba(37, 37, 48, 0.5), rgba(29, 29, 38, 0.85));
   z-index: -1;
   pointer-events: none;
 }
@@ -70,8 +70,8 @@ p {
 }
 
 .app-shell {
-  background: rgba(7, 11, 22, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: #1d1d26;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
   padding: 28px;
   backdrop-filter: blur(12px);

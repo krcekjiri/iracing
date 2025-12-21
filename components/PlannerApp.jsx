@@ -528,37 +528,6 @@ const PlannerApp = () => {
       }
     };
     
-    const sliderRef = { current: null };
-    
-    const handleMouseDown = (e) => {
-      const slider = e.currentTarget;
-      slider.style.cursor = 'grabbing';
-      sliderRef.current = slider;
-      
-      const handleMouseMove = (moveEvent) => {
-        if (sliderRef.current) {
-          const rect = sliderRef.current.getBoundingClientRect();
-          const percent = Math.max(0, Math.min(1, (moveEvent.clientX - rect.left) / rect.width));
-          const rawValue = min + percent * (max - min);
-          const steppedValue = Math.round(rawValue / step) * step;
-          const clamped = Math.max(min, Math.min(max, steppedValue));
-          onChange(clamped);
-        }
-      };
-      
-      const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        if (sliderRef.current) {
-          sliderRef.current.style.cursor = 'grab';
-        }
-        sliderRef.current = null;
-      };
-      
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp, { once: true });
-    };
-    
     const handleInputChange = (e) => {
       const inputValue = e.target.value;
       if (inputValue === '') {
@@ -602,9 +571,16 @@ const PlannerApp = () => {
             max={max} 
             step={step}
             value={clampedValue}
-            onInput={handleSliderChange}
             onChange={handleSliderChange}
-            onMouseDown={handleMouseDown}
+            onMouseDown={(e) => {
+              e.currentTarget.style.cursor = 'grabbing';
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.cursor = 'grab';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.cursor = 'grab';
+            }}
             style={{ 
               flex: 1, 
               cursor: 'grab', 
