@@ -16,11 +16,21 @@ const MIN_EFFICIENT_STINT_RATIO = (() => {
 // ==================== STINT CAPACITY CALCULATOR ====================
 
 const calculateStintCapacities = (tankCapacity, reserveFuel, stdFuelPerLap, fsFuelPerLap, efsFuelPerLap) => {
-  const usableFuel = tankCapacity - reserveFuel;
+  const usableFuel = Math.max(0, tankCapacity - reserveFuel);
+  // Prevent division by zero - ensure minimum values
+  const safeStdFuel = Math.max(0.01, stdFuelPerLap);
+  const safeFsFuel = Math.max(0.01, fsFuelPerLap);
+  const safeEfsFuel = Math.max(0.01, efsFuelPerLap);
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:18',message:'calculateStintCapacities',data:{tankCapacity,reserveFuel,usableFuel,stdFuelPerLap,safeStdFuel},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    console.log('[DEBUG] calculateStintCapacities', {tankCapacity, reserveFuel, usableFuel, stdFuelPerLap, safeStdFuel});
+  } catch(e) { console.error('[DEBUG] Log error:', e); }
+  // #endregion
   return {
-    std: Math.floor(usableFuel / stdFuelPerLap),
-    fs: Math.floor(usableFuel / fsFuelPerLap),
-    efs: Math.floor(usableFuel / efsFuelPerLap),
+    std: Math.max(1, Math.floor(usableFuel / safeStdFuel)),
+    fs: Math.max(1, Math.floor(usableFuel / safeFsFuel)),
+    efs: Math.max(1, Math.floor(usableFuel / safeEfsFuel)),
   };
 };
 
@@ -95,6 +105,9 @@ const simulateRace = ({
 
       // Pit stop (assume full tank for initial simulation)
       const fuelToAdd = tankCapacity - fuelInTank;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:98',message:'division by tankCapacity',data:{tankCapacity,fuelToAdd,willDivideByZero:tankCapacity===0||isNaN(tankCapacity)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const fuelingTime = (fuelToAdd / tankCapacity) * fullTankRefuelTime;
       const pitTime = pitLaneDelta + fuelingTime;
       currentTime += pitTime;
@@ -294,9 +307,21 @@ const findOptimalStrategies = ({
   efsLapTime,
   efsFuelPerLap,
 }) => {
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:310',message:'before calculateStintCapacities',data:{tankCapacity,reserveFuel,stdFuelPerLap,fsFuelPerLap,efsFuelPerLap},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    console.log('[DEBUG] before calculateStintCapacities', {tankCapacity, reserveFuel, stdFuelPerLap, fsFuelPerLap, efsFuelPerLap});
+  } catch(e) { console.error('[DEBUG] Log error:', e); }
+  // #endregion
   const capacities = calculateStintCapacities(
     tankCapacity, reserveFuel, stdFuelPerLap, fsFuelPerLap, efsFuelPerLap
   );
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:318',message:'after calculateStintCapacities',data:{capacities,capacitiesStd:capacities.std,capacitiesFs:capacities.fs,capacitiesEfs:capacities.efs},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    console.log('[DEBUG] after calculateStintCapacities', {capacities, capacitiesStd: capacities.std, capacitiesFs: capacities.fs, capacitiesEfs: capacities.efs});
+  } catch(e) { console.error('[DEBUG] Log error:', e); }
+  // #endregion
 
   const baseParams = {
     raceDurationSeconds, tankCapacity, reserveFuel, formationLapFuel,
@@ -309,8 +334,57 @@ const findOptimalStrategies = ({
   // ========================================
   // 1. STANDARD BASELINE
   // ========================================
-  const estimatedStints = Math.ceil(raceDurationSeconds / (stdLapTime * capacities.std));
-  const standardModes = Array(Math.max(estimatedStints + 2, 10)).fill('std');
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:315',message:'calculating estimatedStints',data:{raceDurationSeconds,stdLapTime,capacitiesStd:capacities.std,denominator:stdLapTime*capacities.std,estimatedStints:Math.ceil(raceDurationSeconds/(stdLapTime*capacities.std))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    console.log('[DEBUG] calculating estimatedStints', {raceDurationSeconds, stdLapTime, capacitiesStd: capacities.std, denominator: stdLapTime * capacities.std});
+  } catch(e) { console.error('[DEBUG] Log error:', e); }
+  // #endregion
+  // Ensure capacities.std is valid before using it
+  const safeCapacitiesStd = Math.max(1, isFinite(capacities.std) ? capacities.std : 1);
+  const safeStdLapTime = Math.max(0.1, isFinite(stdLapTime) ? stdLapTime : 120);
+  const denominator = safeStdLapTime * safeCapacitiesStd;
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:335',message:'denominator calculation',data:{capacitiesStd:capacities.std,safeCapacitiesStd,stdLapTime,safeStdLapTime,denominator,isFinite:isFinite(denominator)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    console.log('[DEBUG] denominator calculation', {capacitiesStd: capacities.std, safeCapacitiesStd, stdLapTime, safeStdLapTime, denominator, isFinite: isFinite(denominator)});
+  } catch(e) { console.error('[DEBUG] Log error:', e); }
+  // #endregion
+  let estimatedStints = 10; // Safe default
+  if (denominator > 0 && isFinite(denominator) && isFinite(raceDurationSeconds) && raceDurationSeconds > 0) {
+    const rawEstimate = raceDurationSeconds / denominator;
+    if (isFinite(rawEstimate) && rawEstimate > 0) {
+      estimatedStints = Math.ceil(rawEstimate);
+      // Cap at reasonable maximum to prevent array length issues (max 1000 stints)
+      estimatedStints = Math.min(estimatedStints, 1000);
+    }
+  }
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:332',message:'estimatedStints result',data:{estimatedStints,isFinite:isFinite(estimatedStints),isNaN:isNaN(estimatedStints),denominator,raceDurationSeconds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    console.log('[DEBUG] estimatedStints result', {estimatedStints, isFinite: isFinite(estimatedStints), isNaN: isNaN(estimatedStints), denominator, raceDurationSeconds});
+  } catch(e) { console.error('[DEBUG] Log error:', e); }
+  // #endregion
+  // Final safety check - ensure it's a valid positive integer
+  const safeEstimatedStints = Math.max(1, Math.min(1000, Math.floor(Math.abs(estimatedStints))));
+  let arrayLength = Math.max(10, Math.min(safeEstimatedStints + 2, 1002));
+  // Ultimate safety check - ensure arrayLength is a valid positive integer
+  if (!isFinite(arrayLength) || arrayLength <= 0 || arrayLength > 1002) {
+    arrayLength = 10; // Safe fallback
+  }
+  arrayLength = Math.floor(Math.abs(arrayLength)); // Ensure it's an integer
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:342',message:'creating standardModes array',data:{safeEstimatedStints,arrayLength,isFinite:isFinite(arrayLength),isValid:isFinite(arrayLength)&&arrayLength>0&&arrayLength<=1002},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    console.log('[DEBUG] creating standardModes array', {safeEstimatedStints, arrayLength, isFinite: isFinite(arrayLength), isValid: isFinite(arrayLength) && arrayLength > 0 && arrayLength <= 1002});
+  } catch(e) { console.error('[DEBUG] Log error:', e); }
+  // #endregion
+  // Final validation right before Array() call
+  if (!isFinite(arrayLength) || arrayLength <= 0 || arrayLength > 1002) {
+    console.error('[DEBUG] Invalid arrayLength detected, using fallback', {arrayLength});
+    arrayLength = 10;
+  }
+  const standardModes = Array(arrayLength).fill('std');
   const standardResult = simulateRace({ ...baseParams, stintModes: standardModes });
   
   const standardFinalStint = standardResult.stints[standardResult.stints.length - 1];
@@ -405,10 +479,14 @@ const findOptimalStrategies = ({
         const isMixed = (nStd > 0 && (nFs > 0 || nEfs > 0)) || (nFs > 0 && nEfs > 0);
         
         // Variant A: Save Late (STD → FS → EFS)
+        // Ensure array lengths are valid (finite, positive integers, capped at reasonable max)
+        const safeNStd = Math.max(0, Math.min(1000, Math.floor(Math.abs(isFinite(nStd) ? nStd : 0))));
+        const safeNFs = Math.max(0, Math.min(1000, Math.floor(Math.abs(isFinite(nFs) ? nFs : 0))));
+        const safeNEfs = Math.max(0, Math.min(1000, Math.floor(Math.abs(isFinite(nEfs) ? nEfs : 0))));
         const modesSaveLate = [
-          ...Array(nStd).fill('std'),
-          ...Array(nFs).fill('fs'),
-          ...Array(nEfs).fill('efs')
+          ...Array(safeNStd).fill('std'),
+          ...Array(safeNFs).fill('fs'),
+          ...Array(safeNEfs).fill('efs')
         ];
         
         const saveLateResult = simulateRace({ ...baseParams, stintModes: modesSaveLate });
@@ -420,9 +498,9 @@ const findOptimalStrategies = ({
         // Variant B: Save Early (EFS → FS → STD)
         if (isMixed) {
           const modesSaveEarly = [
-            ...Array(nEfs).fill('efs'),
-            ...Array(nFs).fill('fs'),
-            ...Array(nStd).fill('std')
+            ...Array(safeNEfs).fill('efs'),
+            ...Array(safeNFs).fill('fs'),
+            ...Array(safeNStd).fill('std')
           ];
           
           const saveEarlyResult = simulateRace({ ...baseParams, stintModes: modesSaveEarly });
@@ -468,13 +546,20 @@ const findOptimalStrategies = ({
  * @returns {Object} Computed strategy plan
  */
 const computePlan = (config, strategyMode = 'standard') => {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:470',message:'computePlan entry',data:{tankCapacity:config.tankCapacity,tankCapacityType:typeof config.tankCapacity,tankCapacityNum:safeNumber(config.tankCapacity)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   const errors = [];
 
   // Basic validation
   if (!config.raceDurationMinutes || config.raceDurationMinutes <= 0) {
     errors.push('Race duration must be greater than zero.');
   }
-  if (!config.tankCapacity || safeNumber(config.tankCapacity) <= 0) {
+  const tankCapacitySafe = safeNumber(config.tankCapacity);
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:477',message:'tankCapacity validation',data:{tankCapacity:config.tankCapacity,tankCapacitySafe,isEmpty:config.tankCapacity==='',isZeroOrLess:tankCapacitySafe<=0,willAddError:!config.tankCapacity||tankCapacitySafe<=0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  if (!config.tankCapacity || tankCapacitySafe <= 0) {
     errors.push('Tank capacity must be greater than zero.');
   }
   if (!config.averageLapTime || parseLapTime(config.averageLapTime) <= 0) {
@@ -511,23 +596,34 @@ const computePlan = (config, strategyMode = 'standard') => {
     return { errors: ['Invalid fuel-saving parameters'] };
   }
 
-  // Call findOptimalStrategies with parsed values
-  const result = findOptimalStrategies({
-    raceDurationSeconds,
-    tankCapacity,
-    reserveFuel,
-    formationLapFuel,
-    pitLaneDelta,
-    fullTankRefuelTime: FULL_TANK_FUELING_TIME,
-    stdLapTime,
-    stdFuelPerLap,
-    fsLapTime,
-    fsFuelPerLap,
-    efsLapTime,
-    efsFuelPerLap,
-  });
+  // Call findOptimalStrategies with parsed values - wrap in try-catch to prevent crashes
+  let result;
+  try {
+    result = findOptimalStrategies({
+      raceDurationSeconds,
+      tankCapacity,
+      reserveFuel,
+      formationLapFuel,
+      pitLaneDelta,
+      fullTankRefuelTime: FULL_TANK_FUELING_TIME,
+      stdLapTime,
+      stdFuelPerLap,
+      fsLapTime,
+      fsFuelPerLap,
+      efsLapTime,
+      efsFuelPerLap,
+    });
+  } catch (error) {
+    // #region agent log
+    try {
+      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategy.js:525',message:'findOptimalStrategies ERROR',data:{errorMessage:error.message,errorStack:error.stack,tankCapacity,stdFuelPerLap},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      console.error('[DEBUG] findOptimalStrategies ERROR', error, {tankCapacity, stdFuelPerLap});
+    } catch(e) { console.error('[DEBUG] Log error:', e); }
+    // #endregion
+    return { errors: [`Calculation error: ${error.message}. Please check your input values.`] };
+  }
 
-  if (!result.strategies || result.strategies.length === 0) {
+  if (!result || !result.strategies || result.strategies.length === 0) {
     return { errors: ['No viable strategy found'] };
   }
 

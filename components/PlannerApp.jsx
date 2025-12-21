@@ -1,4 +1,10 @@
 const PlannerApp = () => {
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:1',message:'PlannerApp component rendering',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    console.log('[DEBUG] PlannerApp rendering');
+  } catch(e) { console.error('[DEBUG] Log error:', e); }
+  // #endregion
   // Load from localStorage or use defaults
   const loadFromStorage = (key, defaultValue) => {
     try {
@@ -100,8 +106,49 @@ const PlannerApp = () => {
     driverSwap: true,
   });
 
-  const standardResult = useMemo(() => computePlan(form, 'standard'), [form]);
-  const fuelSavingResult = useMemo(() => computePlan(form, 'fuel-saving'), [form]);
+  const standardResult = useMemo(() => {
+    // #region agent log
+    try {
+      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:103',message:'standardResult useMemo entry',data:{tankCapacity:form.tankCapacity,tankCapacityType:typeof form.tankCapacity,tankCapacityNum:Number(form.tankCapacity)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      console.log('[DEBUG] standardResult useMemo entry', {tankCapacity: form.tankCapacity, tankCapacityType: typeof form.tankCapacity, tankCapacityNum: Number(form.tankCapacity)});
+    } catch(e) { console.error('[DEBUG] Log error:', e); }
+    // #endregion
+    try {
+      const result = computePlan(form, 'standard');
+      // #region agent log
+      try {
+        fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:107',message:'standardResult useMemo success',data:{hasErrors:!!result.errors,errorCount:result.errors?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        console.log('[DEBUG] standardResult useMemo success', {hasErrors: !!result.errors, errorCount: result.errors?.length || 0});
+      } catch(e) { console.error('[DEBUG] Log error:', e); }
+      // #endregion
+      return result;
+    } catch (error) {
+      // #region agent log
+      try {
+        fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:112',message:'standardResult useMemo ERROR',data:{errorMessage:error.message,errorStack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        console.error('[DEBUG] standardResult useMemo ERROR', error);
+      } catch(e) { console.error('[DEBUG] Log error:', e); }
+      // #endregion
+      throw error;
+    }
+  }, [form]);
+  const fuelSavingResult = useMemo(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:116',message:'fuelSavingResult useMemo entry',data:{tankCapacity:form.tankCapacity},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    try {
+      const result = computePlan(form, 'fuel-saving');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:120',message:'fuelSavingResult useMemo success',data:{hasErrors:!!result.errors},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      return result;
+    } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:125',message:'fuelSavingResult useMemo ERROR',data:{errorMessage:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      throw error;
+    }
+  }, [form]);
   const withAlpha = (hex, alpha = '33') => {
     if (!hex || typeof hex !== 'string') return hex;
     const normalized = hex.replace('#', '');
@@ -305,6 +352,12 @@ const PlannerApp = () => {
 
   const handleInput = (field) => (event) => {
     const { value, type } = event.target;
+    // #region agent log
+    try {
+      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:306',message:'handleInput entry',data:{field,value,type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      console.log('[DEBUG] handleInput entry', {field, value, type});
+    } catch(e) { console.error('[DEBUG] Log error:', e); }
+    // #endregion
     // For number inputs, handle empty values and invalid numbers more gracefully
     if (type === 'number') {
       // For race duration specifically, always ensure it's a valid number to prevent app breakage
@@ -325,12 +378,39 @@ const PlannerApp = () => {
       } else if (field === 'tankCapacity' || field === 'fuelPerLap' || field === 'fuelSavingFuelPerLap' || field === 'extraFuelSavingFuelPerLap') {
         // Prevent zero or negative values for critical fuel calculations to avoid division by zero
         const numValue = parseFloat(value);
+        // #region agent log
+        try {
+          fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:327',message:'tankCapacity branch',data:{field,value,isEmpty:value==='',numValue,isNaN:isNaN(numValue)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          console.log('[DEBUG] tankCapacity branch', {field, value, isEmpty: value==='', numValue, isNaN: isNaN(numValue)});
+        } catch(e) { console.error('[DEBUG] Log error:', e); }
+        // #endregion
         if (value === '' || isNaN(numValue)) {
-          setForm((prev) => ({
-            ...prev,
-            [field]: value === '' ? '' : (field === 'tankCapacity' ? 100 : 3.0),
-          }));
+          // NEVER set empty string for critical fuel fields - always use fallback to prevent crashes
+          const newValue = field === 'tankCapacity' ? 100 : 3.0;
+          // #region agent log
+          try {
+            fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:331',message:'setting fallback value (never empty)',data:{field,newValue,wasEmpty:value===''},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            console.log('[DEBUG] setting fallback value (never empty)', {field, newValue, wasEmpty: value===''});
+          } catch(e) { console.error('[DEBUG] Log error:', e); }
+          // #endregion
+          setForm((prev) => {
+            // #region agent log
+            try {
+              console.log('[DEBUG] setForm called', {field, newValue, prevTankCapacity: prev.tankCapacity});
+            } catch(e) {}
+            // #endregion
+            return {
+              ...prev,
+              [field]: newValue,
+            };
+          });
         } else {
+          // #region agent log
+          try {
+            fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:336',message:'setting valid numValue',data:{field,numValue,finalValue:Math.max(0.01,numValue)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            console.log('[DEBUG] setting valid numValue', {field, numValue, finalValue: Math.max(0.01, numValue)});
+          } catch(e) { console.error('[DEBUG] Log error:', e); }
+          // #endregion
           setForm((prev) => ({
             ...prev,
             [field]: Math.max(0.01, numValue), // Ensure minimum value to prevent division by zero
