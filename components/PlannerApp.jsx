@@ -350,24 +350,50 @@ const PlannerApp = () => {
       ? result.lapsPerStint * (result.fuelPerLap || 0) + reservePerStint
       : 0;
 
-  const handleInput = (field) => (event) => {
-    const { value, type } = event.target;
-    // #region agent log
-    try {
-      fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:306',message:'handleInput entry',data:{field,value,type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      console.log('[DEBUG] handleInput entry', {field, value, type});
-    } catch(e) { console.error('[DEBUG] Log error:', e); }
-    // #endregion
+  const handleInput = (field) => (eventOrValue) => {
+    // Support both event objects and direct numeric values
+    let value, type;
+    if (typeof eventOrValue === 'number') {
+      value = eventOrValue;
+      type = 'number';
+    } else {
+      value = eventOrValue.target.value;
+      type = eventOrValue.target.type;
+    }
+    
+    // Define constraints for each field with exact values
+    const constraints = {
+      tankCapacity: { min: 10, max: 150, step: 1 },
+      fuelBoP: { min: 0, max: 3, step: 0.25 },
+      fuelReserveLiters: { min: 0, max: 1, step: 0.1 },
+      formationLapFuel: { min: 0, max: 3, step: 0.1 },
+      pitLaneDeltaSeconds: { min: 10, max: 45, step: 0.1 },
+      raceDurationMinutes: { min: 60, max: 1440, step: 10 },
+      fuelPerLap: { min: 0.1, max: 10, step: 0.01 },
+      fuelSavingFuelPerLap: { min: 0.1, max: 10, step: 0.01 },
+      extraFuelSavingFuelPerLap: { min: 0.1, max: 10, step: 0.01 },
+    };
+    
+    const constraint = constraints[field];
+    
     // For number inputs, handle empty values and invalid numbers more gracefully
-    if (type === 'number') {
-      // For race duration specifically, always ensure it's a valid number to prevent app breakage
-      if (field === 'raceDurationMinutes') {
+    if (type === 'number' || typeof value === 'number') {
+      const numValue = typeof value === 'number' ? value : parseFloat(value);
+      
+      if (constraint) {
+        // Apply constraints - clamp value to min/max range
+        const clamped = Math.max(constraint.min, Math.min(constraint.max, numValue || constraint.min));
+        setForm((prev) => ({
+          ...prev,
+          [field]: clamped,
+        }));
+      } else if (field === 'raceDurationMinutes') {
+        // Race duration specific handling (legacy support)
         const numValue = parseFloat(value);
         if (value === '' || isNaN(numValue) || numValue <= 0) {
-          // Use a safe default (1 minute) instead of 0 or empty to prevent computePlan errors
           setForm((prev) => ({
             ...prev,
-            [field]: value === '' ? 1 : (isNaN(numValue) ? 1 : Math.max(1, numValue)),
+            [field]: value === '' ? 60 : (isNaN(numValue) ? 60 : Math.max(60, numValue)),
           }));
         } else {
           setForm((prev) => ({
@@ -375,51 +401,10 @@ const PlannerApp = () => {
             [field]: numValue,
           }));
         }
-      } else if (field === 'tankCapacity' || field === 'fuelPerLap' || field === 'fuelSavingFuelPerLap' || field === 'extraFuelSavingFuelPerLap') {
-        // Prevent zero or negative values for critical fuel calculations to avoid division by zero
-        const numValue = parseFloat(value);
-        // #region agent log
-        try {
-          fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:327',message:'tankCapacity branch',data:{field,value,isEmpty:value==='',numValue,isNaN:isNaN(numValue)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          console.log('[DEBUG] tankCapacity branch', {field, value, isEmpty: value==='', numValue, isNaN: isNaN(numValue)});
-        } catch(e) { console.error('[DEBUG] Log error:', e); }
-        // #endregion
-        if (value === '' || isNaN(numValue)) {
-          // NEVER set empty string for critical fuel fields - always use fallback to prevent crashes
-          const newValue = field === 'tankCapacity' ? 100 : 3.0;
-          // #region agent log
-          try {
-            fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:331',message:'setting fallback value (never empty)',data:{field,newValue,wasEmpty:value===''},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-            console.log('[DEBUG] setting fallback value (never empty)', {field, newValue, wasEmpty: value===''});
-          } catch(e) { console.error('[DEBUG] Log error:', e); }
-          // #endregion
-          setForm((prev) => {
-            // #region agent log
-            try {
-              console.log('[DEBUG] setForm called', {field, newValue, prevTankCapacity: prev.tankCapacity});
-            } catch(e) {}
-            // #endregion
-            return {
-              ...prev,
-              [field]: newValue,
-            };
-          });
-        } else {
-          // #region agent log
-          try {
-            fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:336',message:'setting valid numValue',data:{field,numValue,finalValue:Math.max(0.01,numValue)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            console.log('[DEBUG] setting valid numValue', {field, numValue, finalValue: Math.max(0.01, numValue)});
-          } catch(e) { console.error('[DEBUG] Log error:', e); }
-          // #endregion
-          setForm((prev) => ({
-            ...prev,
-            [field]: Math.max(0.01, numValue), // Ensure minimum value to prevent division by zero
-          }));
-        }
       } else {
+        // Allow empty for intermediate typing, but use 0 as fallback for calculations
         const numValue = parseFloat(value);
         if (value === '' || isNaN(numValue)) {
-          // Allow empty for intermediate typing, but use 0 as fallback for calculations
           setForm((prev) => ({
             ...prev,
             [field]: value === '' ? '' : 0,
@@ -432,10 +417,10 @@ const PlannerApp = () => {
         }
       }
     } else {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value === '' ? '' : value,
-    }));
+      setForm((prev) => ({
+        ...prev,
+        [field]: value === '' ? '' : value,
+      }));
     }
   };
 
@@ -519,6 +504,94 @@ const PlannerApp = () => {
     }));
   };
 
+  // SliderInput Component
+  const SliderInput = ({ 
+    label, 
+    value, 
+    onChange, 
+    min, 
+    max, 
+    step, 
+    suffix = '', 
+    helpText,
+    formatValue = (v) => v 
+  }) => {
+    const numValue = parseFloat(value) || min;
+    const clampedValue = Math.max(min, Math.min(max, numValue));
+    
+    const handleSliderChange = (e) => {
+      const newValue = parseFloat(e.target.value);
+      onChange(newValue);
+    };
+    
+    const handleInputChange = (e) => {
+      const inputValue = e.target.value;
+      if (inputValue === '') {
+        return; // Allow empty for typing
+      }
+      const numValue = parseFloat(inputValue);
+      if (!isNaN(numValue)) {
+        const clamped = Math.max(min, Math.min(max, numValue));
+        onChange(clamped);
+      }
+    };
+    
+    const handleInputBlur = (e) => {
+      const numValue = parseFloat(e.target.value) || min;
+      const clamped = Math.max(min, Math.min(max, numValue));
+      onChange(clamped);
+    };
+
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>
+            {label}
+          </label>
+          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--accent)' }}>
+            {formatValue(clampedValue)}{suffix}
+          </span>
+        </div>
+        <input 
+          type="range" 
+          min={min} 
+          max={max} 
+          step={step}
+          value={clampedValue}
+          onInput={handleSliderChange}
+          onChange={handleSliderChange}
+          style={{ width: '100%', cursor: 'grab', marginBottom: 8 }}
+        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={step}
+            value={clampedValue}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
+            style={{ 
+              width: '100px', 
+              padding: '6px 8px',
+              fontSize: '0.85rem',
+              background: 'var(--surface-muted)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              color: 'var(--text)'
+            }}
+          />
+          {suffix && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{suffix}</span>}
+        </div>
+        {helpText && (
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>
+            {typeof helpText === 'function' ? helpText(clampedValue) : helpText}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="app-shell">
       <header className="header">
@@ -575,68 +648,105 @@ const PlannerApp = () => {
             </p>
           </div>
           <div className="inputs-grid">
+            {/* Combined Race & Fuel Parameters */}
             <div className="card">
-              <SectionHeading title="Race Parameters" />
-              <InputField
+              <SectionHeading title="Race & Fuel Parameters" />
+              
+              <SliderInput
                 label="Race Duration"
-                suffix="min"
-                type="number"
                 value={form.raceDurationMinutes}
-                onChange={handleInput('raceDurationMinutes')}
-                helpText="Scheduled race length from the event info. Determines total laps when combined with lap time."
+                onChange={(val) => handleInput('raceDurationMinutes')(val)}
+                min={60}
+                max={1440}
+                step={10}
+                suffix=""
+                formatValue={(v) => {
+                  const hours = Math.floor(v / 60);
+                  const minutes = v % 60;
+                  if (hours > 0 && minutes > 0) {
+                    return `${hours}h ${minutes}min`;
+                  } else if (hours > 0) {
+                    return `${hours}h`;
+                  } else {
+                    return `${minutes}min`;
+                  }
+                }}
+                helpText={(v) => {
+                  const hours = Math.floor(v / 60);
+                  const minutes = v % 60;
+                  let timeStr = '';
+                  if (hours > 0 && minutes > 0) {
+                    timeStr = `${hours} hour${hours !== 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`;
+                  } else if (hours > 0) {
+                    timeStr = `${hours} hour${hours !== 1 ? 's' : ''}`;
+                  } else {
+                    timeStr = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+                  }
+                  return `Scheduled race length: ${timeStr} (${v} minutes). 10-minute increments. Determines total laps when combined with lap time.`;
+                }}
               />
-            </div>
-
-            <div className="card">
-              <SectionHeading title="Fuel and Pit Parameters" />
-              <InputField
+              
+              <SliderInput
                 label="Tank Capacity"
-                suffix="L"
-                type="number"
                 value={form.tankCapacity}
-                onChange={handleInput('tankCapacity')}
+                onChange={(val) => handleInput('tankCapacity')(val)}
+                min={10}
+                max={150}
+                step={1}
+                suffix=" L"
                 helpText="Base fuel tank capacity. The effective capacity is reduced by Fuel BoP percentage."
               />
-              <InputField
+              
+              <SliderInput
                 label="Fuel BoP"
-                suffix="%"
-                type="number"
                 value={form.fuelBoP || 0}
-                onChange={handleInput('fuelBoP')}
-                step="0.01"
+                onChange={(val) => handleInput('fuelBoP')(val)}
+                min={0}
+                max={3}
+                step={0.25}
+                suffix="%"
                 helpText="Balance of Performance adjustment. Percentage reduction to fuel tank capacity (e.g., 0.25% = 0.25). Applied as tank capacity × (1 - BoP/100)."
               />
-              <InputField
+              
+              <SliderInput
                 label="Fuel Reserve"
-                suffix="L"
-                type="number"
                 value={form.fuelReserveLiters}
-                onChange={handleInput('fuelReserveLiters')}
-                step="0.1"
+                onChange={(val) => handleInput('fuelReserveLiters')(val)}
+                min={0}
+                max={1}
+                step={0.1}
+                suffix=" L"
                 helpText="Extra buffer you want to keep in the tank at each stop (e.g., 0.3 L). Added on top of calculated need."
               />
-              <InputField
+              
+              <SliderInput
                 label="Formation Lap Fuel"
-                suffix="L"
-                type="number"
                 value={form.formationLapFuel}
-                onChange={handleInput('formationLapFuel')}
-                step="0.1"
+                onChange={(val) => handleInput('formationLapFuel')(val)}
+                min={0}
+                max={3}
+                step={0.1}
+                suffix=" L"
                 helpText="Fuel consumed during formation lap. This reduces available fuel for Stint 1, which may decrease the number of laps possible in the first stint."
               />
-              <InputField
+              
+              <SliderInput
                 label="Pit Lane Delta"
-                suffix="sec"
-                type="number"
                 value={form.pitLaneDeltaSeconds}
-                onChange={handleInput('pitLaneDeltaSeconds')}
+                onChange={(val) => handleInput('pitLaneDeltaSeconds')(val)}
+                min={10}
+                max={45}
+                step={0.1}
+                suffix=" sec"
                 helpText="Time from pit entry to exit when just driving through. Already accounts for the shorter lane distance."
               />
             </div>
 
+            {/* Strategy Modes - Keep lap times as text inputs, add sliders for fuel */}
             <div className="card">
               <SectionHeading title="Strategy Modes" />
-              <div className="input-row">
+              
+              <div style={{ marginBottom: 20 }}>
                 <InputField
                   label="Standard Lap Time"
                   placeholder="MM:SS.sss"
@@ -644,17 +754,20 @@ const PlannerApp = () => {
                   onChange={handleInput('averageLapTime')}
                   helpText="Baseline lap time for standard strategy."
                 />
-                <InputField
-                  label="Standard Fuel / Lap"
-                  suffix="L"
-                  type="number"
-                  value={form.fuelPerLap}
-                  onChange={handleInput('fuelPerLap')}
-                  step="0.01"
-                  helpText="Fuel consumption for standard strategy."
-                />
               </div>
-              <div className="input-row">
+              
+              <SliderInput
+                label="Standard Fuel / Lap"
+                value={form.fuelPerLap}
+                onChange={(val) => handleInput('fuelPerLap')(val)}
+                min={0.1}
+                max={10}
+                step={0.01}
+                suffix=" L"
+                helpText="Fuel consumption for standard strategy."
+              />
+              
+              <div style={{ marginBottom: 20 }}>
                 <InputField
                   label="Fuel-Saving Lap Time"
                   placeholder="MM:SS.sss"
@@ -662,17 +775,20 @@ const PlannerApp = () => {
                   onChange={handleInput('fuelSavingLapTime')}
                   helpText="Slower lap time when fuel saving (typically 0.2-0.5s slower)."
                 />
-                <InputField
-                  label="Fuel-Saving Fuel / Lap"
-                  suffix="L"
-                  type="number"
-                  value={form.fuelSavingFuelPerLap}
-                  onChange={handleInput('fuelSavingFuelPerLap')}
-                  step="0.01"
-                  helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
-                />
               </div>
-              <div className="input-row">
+              
+              <SliderInput
+                label="Fuel-Saving Fuel / Lap"
+                value={form.fuelSavingFuelPerLap}
+                onChange={(val) => handleInput('fuelSavingFuelPerLap')(val)}
+                min={0.1}
+                max={10}
+                step={0.01}
+                suffix=" L"
+                helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
+              />
+              
+              <div style={{ marginBottom: 20 }}>
                 <InputField
                   label="Extra Fuel-Saving Lap Time"
                   placeholder="MM:SS.sss"
@@ -680,16 +796,19 @@ const PlannerApp = () => {
                   onChange={handleInput('extraFuelSavingLapTime')}
                   helpText="Slowest lap time for maximum fuel efficiency (typically 0.3-0.5s slower than fuel-saving)."
                 />
-                <InputField
-                  label="Extra Fuel-Saving Fuel / Lap"
-                  suffix="L"
-                  type="number"
-                  value={form.extraFuelSavingFuelPerLap}
-                  onChange={handleInput('extraFuelSavingFuelPerLap')}
-                  step="0.01"
-                  helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
-                />
               </div>
+              
+              <SliderInput
+                label="Extra Fuel-Saving Fuel / Lap"
+                value={form.extraFuelSavingFuelPerLap}
+                onChange={(val) => handleInput('extraFuelSavingFuelPerLap')(val)}
+                min={0.1}
+                max={10}
+                step={0.01}
+                suffix=" L"
+                helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
+              />
+              
               <div style={{ 
                 marginTop: 16, 
                 padding: '10px 12px', 
