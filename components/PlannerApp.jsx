@@ -556,70 +556,71 @@ const PlannerApp = () => {
 
             <div className="card">
               <SectionHeading title="Strategy Modes" />
-          <div className="input-row">
-            <InputField
-              label="Standard Lap Time"
-              placeholder="MM:SS.sss"
-              value={form.averageLapTime}
-              onChange={handleInput('averageLapTime')}
-              helpText="Baseline lap time for standard strategy."
-            />
-            <InputField
-              label="Standard Fuel / Lap"
-              suffix="L"
-              type="number"
-              value={form.fuelPerLap}
-              onChange={handleInput('fuelPerLap')}
-              step="0.01"
-              helpText="Fuel consumption for standard strategy."
-            />
-          </div>
-          <div className="input-row">
-            <InputField
-              label="Fuel-Saving Lap Time"
-              placeholder="MM:SS.sss"
-              value={form.fuelSavingLapTime}
-              onChange={handleInput('fuelSavingLapTime')}
-              helpText="Slower lap time when fuel saving (typically 0.2-0.5s slower)."
-            />
-            <InputField
-              label="Fuel-Saving Fuel / Lap"
-              suffix="L"
-              type="number"
-              value={form.fuelSavingFuelPerLap}
-              onChange={handleInput('fuelSavingFuelPerLap')}
-              step="0.01"
-              helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
-            />
-          </div>
-          <div className="input-row">
-            <InputField
-              label="Extra Fuel-Saving Lap Time"
-              placeholder="MM:SS.sss"
-              value={form.extraFuelSavingLapTime}
-              onChange={handleInput('extraFuelSavingLapTime')}
-              helpText="Slowest lap time for maximum fuel efficiency (typically 0.3-0.5s slower than fuel-saving)."
-            />
-            <InputField
-              label="Extra Fuel-Saving Fuel / Lap"
-              suffix="L"
-              type="number"
-              value={form.extraFuelSavingFuelPerLap}
-              onChange={handleInput('extraFuelSavingFuelPerLap')}
-              step="0.01"
-              helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
-            />
-          </div>
-          <div style={{ 
-            marginTop: 16, 
-            padding: '10px 12px', 
-            background: 'rgba(56, 189, 248, 0.08)', 
-            borderRadius: 6, 
-            border: '1px solid rgba(56, 189, 248, 0.15)',
-            fontSize: '0.8rem',
-            color: 'var(--text-muted)',
-          }}>
-              💡 Fine-tune lap times and fuel consumption for each stint in <strong style={{ color: '#38bdf8' }}>Stint Model</strong> tab.
+              <div className="input-row">
+                <InputField
+                  label="Standard Lap Time"
+                  placeholder="MM:SS.sss"
+                  value={form.averageLapTime}
+                  onChange={handleInput('averageLapTime')}
+                  helpText="Baseline lap time for standard strategy."
+                />
+                <InputField
+                  label="Standard Fuel / Lap"
+                  suffix="L"
+                  type="number"
+                  value={form.fuelPerLap}
+                  onChange={handleInput('fuelPerLap')}
+                  step="0.01"
+                  helpText="Fuel consumption for standard strategy."
+                />
+              </div>
+              <div className="input-row">
+                <InputField
+                  label="Fuel-Saving Lap Time"
+                  placeholder="MM:SS.sss"
+                  value={form.fuelSavingLapTime}
+                  onChange={handleInput('fuelSavingLapTime')}
+                  helpText="Slower lap time when fuel saving (typically 0.2-0.5s slower)."
+                />
+                <InputField
+                  label="Fuel-Saving Fuel / Lap"
+                  suffix="L"
+                  type="number"
+                  value={form.fuelSavingFuelPerLap}
+                  onChange={handleInput('fuelSavingFuelPerLap')}
+                  step="0.01"
+                  helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
+                />
+              </div>
+              <div className="input-row">
+                <InputField
+                  label="Extra Fuel-Saving Lap Time"
+                  placeholder="MM:SS.sss"
+                  value={form.extraFuelSavingLapTime}
+                  onChange={handleInput('extraFuelSavingLapTime')}
+                  helpText="Slowest lap time for maximum fuel efficiency (typically 0.3-0.5s slower than fuel-saving)."
+                />
+                <InputField
+                  label="Extra Fuel-Saving Fuel / Lap"
+                  suffix="L"
+                  type="number"
+                  value={form.extraFuelSavingFuelPerLap}
+                  onChange={handleInput('extraFuelSavingFuelPerLap')}
+                  step="0.01"
+                  helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
+                />
+              </div>
+              <div style={{ 
+                marginTop: 16, 
+                padding: '10px 12px', 
+                background: 'rgba(56, 189, 248, 0.08)', 
+                borderRadius: 6, 
+                border: '1px solid rgba(56, 189, 248, 0.15)',
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+              }}>
+                💡 Fine-tune lap times and fuel consumption for each stint in <strong style={{ color: '#38bdf8' }}>Stint Model</strong> tab.
+              </div>
             </div>
           </div>
         </div>
