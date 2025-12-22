@@ -391,9 +391,9 @@ const PlannerApp = () => {
     // Define constraints for each field with exact values
     const constraints = {
       // tankCapacity: NO CONSTRAINTS - allow any value between 10-150, user can type freely
-      fuelBoP: { min: 0, max: 3, step: 0.25 },
-      fuelReserveLiters: { min: 0, max: 1, step: 0.1 },
-      formationLapFuel: { min: 0, max: 3, step: 0.1 },
+      // fuelBoP: NO CONSTRAINTS - allow any value, user can type freely
+      // fuelReserveLiters: NO CONSTRAINTS - allow any value, user can type freely
+      // formationLapFuel: NO CONSTRAINTS - allow any value, user can type freely
       // pitLaneDeltaSeconds: NO CONSTRAINTS - allow any value up to 2 digits
       raceDurationMinutes: { min: 60, max: 1440, step: 10 },
       fuelPerLap: { min: 0.1, max: 10, step: 0.01 },
@@ -431,8 +431,8 @@ const PlannerApp = () => {
             [field]: '',
           }));
         }
-      } else if (field === 'tankCapacity') {
-        // Tank Capacity: allow any value, but validate on blur (handled in InputField onBlur)
+      } else if (field === 'tankCapacity' || field === 'fuelBoP' || field === 'fuelReserveLiters' || field === 'formationLapFuel') {
+        // These fields: allow any value, validate on blur (handled in InputField onBlur)
         if (!isNaN(numValue)) {
           setForm((prev) => ({
             ...prev,
@@ -861,9 +861,6 @@ const PlannerApp = () => {
                   suffix="%"
                   value={form.fuelBoP}
                   onChange={handleInput('fuelBoP')}
-                  min={0}
-                  max={10}
-                  step={0.25}
                   helpText="Balance of Performance reduction to tank capacity."
                 />
                 <InputField
@@ -872,9 +869,6 @@ const PlannerApp = () => {
                   suffix="L"
                   value={form.fuelReserveLiters}
                   onChange={handleInput('fuelReserveLiters')}
-                  min={0}
-                  max={2}
-                  step={0.1}
                   helpText="Buffer to keep in tank at each stop."
                 />
                 <InputField
@@ -883,9 +877,6 @@ const PlannerApp = () => {
                   suffix="L"
                   value={form.formationLapFuel}
                   onChange={handleInput('formationLapFuel')}
-                  min={0}
-                  max={5}
-                  step={0.1}
                   helpText="Fuel consumed during formation lap."
                 />
                 <InputField
@@ -1088,10 +1079,7 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 6v6" />
-              <path d="M12 18h.01" />
-              <circle cx="12" cy="12" r="2" />
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
             </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Model pit stop times by configuring tire changes, fuel amounts, and driver swaps. See which service is the bottleneck and optimize your pit strategy.
@@ -2327,9 +2315,12 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <path d="M12 22V12" />
-              <path d="M22 12L12 2L2 12" />
+              <path d="M3 2v20h18V2z" />
+              <path d="M7 6h10" />
+              <path d="M7 10h10" />
+              <path d="M7 14h10" />
+              <path d="M7 18h10" />
+              <circle cx="12" cy="12" r="2" />
             </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Calculate target fuel consumption per lap to achieve your target laps. View sensitivity analysis showing how fuel consumption variations affect possible lap counts.
