@@ -26,6 +26,26 @@ const PlannerApp = () => {
   const [form, setForm] = useState(() => loadFromStorage('form', defaultForm));
   const [confirmedForm, setConfirmedForm] = useState(() => loadFromStorage('form', defaultForm)); // Form used for calculations
   const [showStrategyCalculated, setShowStrategyCalculated] = useState(false);
+
+  // Race duration presets
+  const racePresets = [
+    { label: '1h', value: 60 },
+    { label: '2h', value: 120 },
+    { label: '4h', value: 240 },
+    { label: '6h', value: 360 },
+    { label: '8h', value: 480 },
+    { label: '12h', value: 720 },
+    { label: '24h', value: 1440 },
+  ];
+
+  // Format duration helper
+  const formatDuration = (mins) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  };
   const [drivers, setDrivers] = useState(() => loadFromStorage('drivers', [
     { id: Date.now(), name: 'John', timezone: 'UTC', color: '#0ea5e9' },
     { id: Date.now() + 1, name: 'Jack', timezone: 'UTC', color: '#8b5cf6' },
@@ -701,237 +721,222 @@ const PlannerApp = () => {
               Calculate Strategy
             </button>
           </div>
+          
           <div className="inputs-grid">
-            {/* Combined Race & Fuel Parameters */}
-        <div className="card">
-              <SectionHeading title="Race & Fuel Parameters" />
-              
-              <SliderInput
-            label="Race Duration"
-            value={form.raceDurationMinutes}
-                onChange={(val) => handleInput('raceDurationMinutes')(val)}
-                min={60}
-                max={1440}
-                step={10}
-                suffix=""
-                formatValue={(v) => {
-                  const hours = Math.floor(v / 60);
-                  const minutes = v % 60;
-                  if (hours > 0 && minutes > 0) {
-                    return `${hours}h ${minutes}min`;
-                  } else if (hours > 0) {
-                    return `${hours}h`;
-                  } else {
-                    return `${minutes}min`;
-                  }
-                }}
-                helpText={(v) => {
-                  const hours = Math.floor(v / 60);
-                  const minutes = v % 60;
-                  let timeStr = '';
-                  if (hours > 0 && minutes > 0) {
-                    timeStr = `${hours} hour${hours !== 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`;
-                  } else if (hours > 0) {
-                    timeStr = `${hours} hour${hours !== 1 ? 's' : ''}`;
-                  } else {
-                    timeStr = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-                  }
-                  return `Scheduled race length: ${timeStr} (${v} minutes). 10-minute increments.`;
-                }}
-              />
-              
-              <SliderInput
-            label="Tank Capacity"
-            value={form.tankCapacity}
-                onChange={(val) => handleInput('tankCapacity')(val)}
-                min={10}
-                max={150}
-                step={1}
-                suffix=" L"
-            helpText="Base fuel tank capacity. The effective capacity is reduced by Fuel BoP percentage."
-          />
-              
-              <SliderInput
-            label="Fuel BoP"
-            value={form.fuelBoP || 0}
-                onChange={(val) => handleInput('fuelBoP')(val)}
-                min={0}
-                max={3}
-                step={0.25}
-                suffix="%"
-            helpText="Balance of Performance adjustment. Percentage reduction to fuel tank capacity (e.g., 0.25% = 0.25). Applied as tank capacity × (1 - BoP/100)."
-          />
-              
-              <SliderInput
-            label="Fuel Reserve"
-            value={form.fuelReserveLiters}
-                onChange={(val) => handleInput('fuelReserveLiters')(val)}
-                min={0}
-                max={1}
-                step={0.1}
-                suffix=" L"
-            helpText="Extra buffer you want to keep in the tank at each stop (e.g., 0.3 L). Added on top of calculated need."
-          />
-              
-              <SliderInput
-            label="Formation Lap Fuel"
-            value={form.formationLapFuel}
-                onChange={(val) => handleInput('formationLapFuel')(val)}
-                min={0}
-                max={3}
-                step={0.1}
-                suffix=" L"
-            helpText="Fuel consumed during formation lap. This reduces available fuel for Stint 1, which may decrease the number of laps possible in the first stint."
-          />
-              
-              <SliderInput
-            label="Pit Lane Delta"
-            value={form.pitLaneDeltaSeconds}
-                onChange={(val) => handleInput('pitLaneDeltaSeconds')(val)}
-                min={10}
-                max={45}
-                step={0.1}
-                suffix=" sec"
-            helpText="Time from pit entry to exit when just driving through. Already accounts for the shorter lane distance."
-          />
-        </div>
+            {/* Race & Fuel Parameters */}
+            <div className="card">
+              <h3 className="section-title">Race & Fuel Parameters</h3>
 
-            {/* Strategy Modes - Keep lap times as text inputs, add sliders for fuel */}
-        <div className="card">
-          <SectionHeading title="Strategy Modes" />
-              
+              {/* Race Duration with Presets */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <label className="field-label" style={{ margin: 0 }}>Race Duration</label>
+                  <span className="help-badge" tabIndex={0}>
+                    <span className="help-icon">?</span>
+                    <span className="help-tooltip">Scheduled race length. Click a preset or enter custom minutes.</span>
+                  </span>
+                </div>
+                
+                {/* Preset Buttons */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                  {racePresets.map(preset => (
+                    <button
+                      key={preset.value}
+                      onClick={() => setForm(prev => ({ ...prev, raceDurationMinutes: preset.value }))}
+                      className={`preset-btn ${form.raceDurationMinutes === preset.value ? 'active' : ''}`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Custom Input */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="number"
+                    value={form.raceDurationMinutes}
+                    onChange={handleInput('raceDurationMinutes')}
+                    min={10}
+                    step={10}
+                    style={{
+                      width: 80,
+                      padding: '6px 10px',
+                      background: 'var(--surface-muted)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      color: 'var(--text)',
+                      fontSize: '0.85rem'
+                    }}
+                  />
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>min</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', opacity: 0.6 }}>
+                    = {formatDuration(form.raceDurationMinutes)}
+                  </span>
+                </div>
+              </div>
+
+              {/* 2x2 Grid for core params */}
+              <div className="param-grid">
+                <InputField
+                  label="Tank Capacity"
+                  type="number"
+                  suffix="L"
+                  value={form.tankCapacity}
+                  onChange={handleInput('tankCapacity')}
+                  min={10}
+                  max={200}
+                  step={1}
+                  helpText="Base fuel tank capacity before BoP adjustments."
+                />
+                <InputField
+                  label="Fuel BoP"
+                  type="number"
+                  suffix="%"
+                  value={form.fuelBoP || 0}
+                  onChange={handleInput('fuelBoP')}
+                  min={0}
+                  max={10}
+                  step={0.25}
+                  helpText="Balance of Performance reduction to tank capacity."
+                />
+                <InputField
+                  label="Fuel Reserve"
+                  type="number"
+                  suffix="L"
+                  value={form.fuelReserveLiters}
+                  onChange={handleInput('fuelReserveLiters')}
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  helpText="Buffer to keep in tank at each stop."
+                />
+                <InputField
+                  label="Formation Lap Fuel"
+                  type="number"
+                  suffix="L"
+                  value={form.formationLapFuel}
+                  onChange={handleInput('formationLapFuel')}
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  helpText="Fuel consumed during formation lap."
+                />
+              </div>
+
+              <InputField
+                label="Pit Lane Delta"
+                type="number"
+                suffix="sec"
+                value={form.pitLaneDeltaSeconds}
+                onChange={handleInput('pitLaneDeltaSeconds')}
+                min={10}
+                max={60}
+                step={0.1}
+                helpText="Time lost driving through pit lane (entry to exit)."
+              />
+            </div>
+
+            {/* Strategy Modes */}
+            <div className="card">
+              <h3 className="section-title">Strategy Modes</h3>
+
               {/* Standard - Blue */}
-              <div style={{ 
-                marginBottom: 12, 
-                padding: '8px 12px', 
-                borderRadius: 8, 
-                background: 'rgba(30, 167, 255, 0.08)', 
-                border: '1px solid rgba(30, 167, 255, 0.2)' 
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span style={{ 
-                    display: 'inline-block', 
-                    width: 16, 
-                    height: 16, 
-                    borderRadius: 4, 
-                    background: '#1ea7ff',
-                    flexShrink: 0
-                  }}></span>
+              <div className="strategy-card strategy-standard">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span className="strategy-dot" style={{ background: '#1ea7ff' }}></span>
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1ea7ff' }}>Standard</span>
                 </div>
-                <div style={{ marginBottom: 8 }}>
-            <InputField
-              label="Standard Lap Time"
-              placeholder="MM:SS.sss"
-              value={form.averageLapTime}
-              onChange={handleInput('averageLapTime')}
-              helpText="Baseline lap time for standard strategy."
-            />
+                <div className="strategy-inputs">
+                  <InputField
+                    label="Lap Time"
+                    placeholder="MM:SS.sss"
+                    value={form.averageLapTime}
+                    onChange={handleInput('averageLapTime')}
+                    helpText="Baseline lap time for standard pace."
+                  />
+                  <InputField
+                    label="Fuel / Lap"
+                    type="number"
+                    suffix="L"
+                    value={form.fuelPerLap}
+                    onChange={handleInput('fuelPerLap')}
+                    min={0.1}
+                    max={10}
+                    step={0.01}
+                    helpText="Fuel consumption at standard pace."
+                  />
                 </div>
-                <SliderInput
-              label="Standard Fuel / Lap"
-              value={form.fuelPerLap}
-                  onChange={(val) => handleInput('fuelPerLap')(val)}
-                  min={0.1}
-                  max={10}
-                  step={0.01}
-                  suffix=" L"
-              helpText="Fuel consumption for standard strategy."
-            />
-          </div>
-              
+              </div>
+
               {/* Fuel-Saving - Green */}
-              <div style={{ 
-                marginBottom: 12, 
-                padding: '8px 12px', 
-                borderRadius: 8, 
-                background: 'rgba(16, 185, 129, 0.08)', 
-                border: '1px solid rgba(16, 185, 129, 0.2)' 
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span style={{ 
-                    display: 'inline-block', 
-                    width: 16, 
-                    height: 16, 
-                    borderRadius: 4, 
-                    background: '#10b981',
-                    flexShrink: 0
-                  }}></span>
+              <div className="strategy-card strategy-fuel-saving">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span className="strategy-dot" style={{ background: '#10b981' }}></span>
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>Fuel-Saving</span>
                 </div>
-                <div style={{ marginBottom: 8 }}>
-            <InputField
-              label="Fuel-Saving Lap Time"
-              placeholder="MM:SS.sss"
-              value={form.fuelSavingLapTime}
-              onChange={handleInput('fuelSavingLapTime')}
-              helpText="Slower lap time when fuel saving (typically 0.2-0.5s slower)."
-            />
+                <div className="strategy-inputs">
+                  <InputField
+                    label="Lap Time"
+                    placeholder="MM:SS.sss"
+                    value={form.fuelSavingLapTime}
+                    onChange={handleInput('fuelSavingLapTime')}
+                    helpText="Slower lap time when fuel saving."
+                  />
+                  <InputField
+                    label="Fuel / Lap"
+                    type="number"
+                    suffix="L"
+                    value={form.fuelSavingFuelPerLap}
+                    onChange={handleInput('fuelSavingFuelPerLap')}
+                    min={0.1}
+                    max={10}
+                    step={0.01}
+                    helpText="Lower fuel consumption when saving."
+                  />
                 </div>
-                <SliderInput
-              label="Fuel-Saving Fuel / Lap"
-              value={form.fuelSavingFuelPerLap}
-                  onChange={(val) => handleInput('fuelSavingFuelPerLap')(val)}
-                  min={0.1}
-                  max={10}
-                  step={0.01}
-                  suffix=" L"
-              helpText="Lower fuel consumption when fuel saving (typically 0.1-0.15L less)."
-            />
-          </div>
-              
+              </div>
+
               {/* Extra Fuel-Saving - Purple */}
-              <div style={{ 
-                marginBottom: 12, 
-                padding: '8px 12px', 
-                borderRadius: 8, 
-                background: 'rgba(168, 85, 247, 0.08)', 
-                border: '1px solid rgba(168, 85, 247, 0.2)' 
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span style={{ 
-                    display: 'inline-block', 
-                    width: 16, 
-                    height: 16, 
-                    borderRadius: 4, 
-                    background: '#a855f7',
-                    flexShrink: 0
-                  }}></span>
+              <div className="strategy-card strategy-extra">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span className="strategy-dot" style={{ background: '#a855f7' }}></span>
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a855f7' }}>Extra Fuel-Saving</span>
                 </div>
-                <div style={{ marginBottom: 8 }}>
-            <InputField
-              label="Extra Fuel-Saving Lap Time"
-              placeholder="MM:SS.sss"
-              value={form.extraFuelSavingLapTime}
-              onChange={handleInput('extraFuelSavingLapTime')}
-              helpText="Slowest lap time for maximum fuel efficiency (typically 0.3-0.5s slower than fuel-saving)."
-            />
+                <div className="strategy-inputs">
+                  <InputField
+                    label="Lap Time"
+                    placeholder="MM:SS.sss"
+                    value={form.extraFuelSavingLapTime}
+                    onChange={handleInput('extraFuelSavingLapTime')}
+                    helpText="Slowest lap time for maximum efficiency."
+                  />
+                  <InputField
+                    label="Fuel / Lap"
+                    type="number"
+                    suffix="L"
+                    value={form.extraFuelSavingFuelPerLap}
+                    onChange={handleInput('extraFuelSavingFuelPerLap')}
+                    min={0.1}
+                    max={10}
+                    step={0.01}
+                    helpText="Lowest fuel consumption for max range."
+                  />
                 </div>
-                <SliderInput
-              label="Extra Fuel-Saving Fuel / Lap"
-              value={form.extraFuelSavingFuelPerLap}
-                  onChange={(val) => handleInput('extraFuelSavingFuelPerLap')(val)}
-                  min={0.1}
-                  max={10}
-                  step={0.01}
-                  suffix=" L"
-              helpText="Lowest fuel consumption for maximum range (typically 0.1-0.15L less than fuel-saving)."
-            />
-          </div>
-              
-          <div style={{ 
-            marginTop: 16, 
-            padding: '10px 12px', 
-                background: 'rgba(251, 191, 36, 0.08)', 
-            borderRadius: 6, 
+              </div>
+
+              {/* Hint */}
+              <div style={{
+                marginTop: 16,
+                padding: '10px 12px',
+                background: 'rgba(251, 191, 36, 0.08)',
+                borderRadius: 6,
                 border: '1px solid rgba(251, 191, 36, 0.15)',
-            fontSize: '0.8rem',
-            color: 'var(--text-muted)',
-          }}>
-                💡 Fine-tune lap times and fuel consumption for each stint in <strong style={{ color: '#fbbf24' }}>Stint Model</strong> tab.
-          </div>
-        </div>
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+              }}>
+                💡 Fine-tune lap times per stint in <strong style={{ color: '#fbbf24' }}>Stint Model</strong> tab.
+              </div>
+            </div>
           </div>
         </div>
       )}
