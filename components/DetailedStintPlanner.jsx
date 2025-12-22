@@ -210,7 +210,7 @@ const DetailedStintPlanner = ({
                 </span>
                 <FuelIcon />
                 <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8' }}>
-                  +{fuelToAdd}L
+                  +{roundTo(fuelToAdd, 1)}L
                 </span>
                 <ClockIcon />
                 <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8' }}>
