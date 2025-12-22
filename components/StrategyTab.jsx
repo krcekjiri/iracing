@@ -240,7 +240,14 @@ const StrategyTab = ({
       .map(stint => stint.perStopLoss || 0)
       .filter(time => time > 0); // Filter out any zero/undefined values
     if (stopTimes.length === 0) return 'No stops';
-    // Always show individual times to see splash-and-dash optimization (rounded to whole numbers)
+    
+    // If too many stops, show summary instead
+    if (stopTimes.length > 3) {
+      const avgTime = stopTimes.reduce((a, b) => a + b, 0) / stopTimes.length;
+      return `${stopTimes.length} stops • ~${Math.round(avgTime)}s avg`;
+    }
+    
+    // Show individual times for 1-3 stops
     if (stopTimes.length === 1) {
       return `${Math.round(stopTimes[0])}s`;
     }
@@ -389,12 +396,10 @@ const StrategyTab = ({
                       <Stat
                         label="Average Lap (no pits)"
                         value={avgLaps.withoutPits > 0 ? formatLapTime(avgLaps.withoutPits) : '--'}
-                        detail="Average lap time excluding pit stops"
                       />
                       <Stat
                         label="Average Lap (with pits)"
                         value={avgLaps.withPits > 0 ? formatLapTime(avgLaps.withPits) : '--'}
-                        detail="Average lap time including pit stop time"
                       />
                     </>
                   )}

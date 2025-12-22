@@ -548,21 +548,16 @@ const PlannerApp = () => {
 
     return (
       <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>
-              {label}
-            </label>
-            {helpText && (
-              <span className="help-badge" tabIndex={0}>
-                <span className="help-icon">?</span>
-                <span className="help-tooltip">{typeof helpText === 'function' ? helpText(clampedValue) : helpText}</span>
-              </span>
-            )}
-          </div>
-          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--accent)' }}>
-            {formatValue(clampedValue)}{suffix}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>
+            {label}
+          </label>
+          {helpText && (
+            <span className="help-badge" tabIndex={0}>
+              <span className="help-icon">?</span>
+              <span className="help-tooltip">{typeof helpText === 'function' ? helpText(clampedValue) : helpText}</span>
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input 
@@ -571,14 +566,12 @@ const PlannerApp = () => {
             max={max} 
             step={step}
             value={clampedValue}
+            onInput={handleSliderChange}
             onChange={handleSliderChange}
-            onMouseDown={(e) => {
-              e.currentTarget.style.cursor = 'grabbing';
-            }}
             onMouseUp={(e) => {
               e.currentTarget.style.cursor = 'grab';
             }}
-            onMouseLeave={(e) => {
+            onTouchEnd={(e) => {
               e.currentTarget.style.cursor = 'grab';
             }}
             style={{ 
