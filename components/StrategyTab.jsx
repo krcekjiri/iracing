@@ -256,7 +256,11 @@ const StrategyTab = ({
 
   return (
     <div className="tab-content">
-      <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+      <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+          <path d="M9 11l3 3L22 4" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        </svg>
         <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           Compare strategy options and select one to view detailed stint plan. Click strategy cards or rows in the comparison table to see detailed breakdown.
         </p>

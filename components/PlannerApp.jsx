@@ -26,6 +26,7 @@ const PlannerApp = () => {
   const [form, setForm] = useState(() => loadFromStorage('form', defaultForm));
   const [confirmedForm, setConfirmedForm] = useState(() => loadFromStorage('form', defaultForm)); // Form used for calculations
   const [showStrategyCalculated, setShowStrategyCalculated] = useState(false);
+  const [isCalculatingStrategy, setIsCalculatingStrategy] = useState(false);
 
   // Race duration presets
   const racePresets = [
@@ -393,7 +394,7 @@ const PlannerApp = () => {
       fuelBoP: { min: 0, max: 3, step: 0.25 },
       fuelReserveLiters: { min: 0, max: 1, step: 0.1 },
       formationLapFuel: { min: 0, max: 3, step: 0.1 },
-      pitLaneDeltaSeconds: { min: 10, max: 45, step: 0.1 },
+      // pitLaneDeltaSeconds: NO CONSTRAINTS - allow any value up to 2 digits
       raceDurationMinutes: { min: 60, max: 1440, step: 10 },
       fuelPerLap: { min: 0.1, max: 10, step: 0.01 },
       fuelSavingFuelPerLap: { min: 0.1, max: 10, step: 0.01 },
@@ -653,16 +654,21 @@ const PlannerApp = () => {
 
   // Handle confirmation - copy draft form to confirmed form
   const handleConfirmForm = () => {
-    setConfirmedForm({ ...form });
-    saveToStorage('form', form);
-    setShowStrategyCalculated(true);
-    // Show confirmation and switch to Strategy tab
+    setIsCalculatingStrategy(true);
+    // Small delay to show loading state
     setTimeout(() => {
-      setActiveTab('strategy');
+      setConfirmedForm({ ...form });
+      saveToStorage('form', form);
+      setIsCalculatingStrategy(false);
+      setShowStrategyCalculated(true);
+      // Show confirmation and switch to Strategy tab
       setTimeout(() => {
-        setShowStrategyCalculated(false);
-      }, 3000);
-    }, 100);
+        setActiveTab('strategy');
+        setTimeout(() => {
+          setShowStrategyCalculated(false);
+        }, 3000);
+      }, 100);
+    }, 300);
   };
 
   return (
@@ -715,35 +721,58 @@ const PlannerApp = () => {
 
       {activeTab === 'setup' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4" />
+              <path d="M12 8h.01" />
+            </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', flex: 1 }}>
               Configure race parameters and strategy modes. Click <strong style={{ color: 'var(--accent)' }}>Calculate Strategy</strong> to generate your race plan.
             </p>
             <button
               onClick={handleConfirmForm}
+              disabled={isCalculatingStrategy}
               style={{
                 padding: '10px 20px',
-                background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
+                background: isCalculatingStrategy ? 'var(--surface-muted)' : 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
                 border: 'none',
                 borderRadius: 8,
                 color: '#fff',
                 fontSize: '0.9rem',
                 fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(251, 191, 36, 0.3)',
+                cursor: isCalculatingStrategy ? 'wait' : 'pointer',
+                boxShadow: isCalculatingStrategy ? 'none' : '0 4px 12px rgba(251, 191, 36, 0.3)',
                 transition: 'all 0.2s ease',
-                marginLeft: 16
+                marginLeft: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                opacity: isCalculatingStrategy ? 0.7 : 1
               }}
               onMouseEnter={(e) => {
-                e.target.style.transform = 'translateY(-1px)';
-                e.target.style.boxShadow = '0 6px 16px rgba(251, 191, 36, 0.4)';
+                if (!isCalculatingStrategy) {
+                  e.target.style.transform = 'translateY(-1px)';
+                  e.target.style.boxShadow = '0 6px 16px rgba(251, 191, 36, 0.4)';
+                }
               }}
               onMouseLeave={(e) => {
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.3)';
+                if (!isCalculatingStrategy) {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.3)';
+                }
               }}
             >
-              Calculate Strategy
+              {isCalculatingStrategy ? (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Calculating...
+                </>
+              ) : (
+                'Calculate Strategy'
+              )}
             </button>
           </div>
           
@@ -848,9 +877,6 @@ const PlannerApp = () => {
                   suffix="sec"
                   value={form.pitLaneDeltaSeconds}
                   onChange={handleInput('pitLaneDeltaSeconds')}
-                  min={10}
-                  max={60}
-                  step={0.1}
                   helpText="Time lost driving through pit lane (entry to exit)."
                 />
               </div>
@@ -1043,7 +1069,11 @@ const PlannerApp = () => {
 
       {activeTab === 'sandbox' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Model pit stop times by configuring tire changes, fuel amounts, and driver swaps. See which service is the bottleneck and optimize your pit strategy.
             </p>
@@ -1352,9 +1382,15 @@ const PlannerApp = () => {
 
       {activeTab === 'lap-times' && (
         <div className="tab-content">
-              <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+              <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+              <path d="M3 3v18h18" />
+              <path d="M18 17V9" />
+              <path d="M13 17V5" />
+              <path d="M8 17v-3" />
+            </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              <strong>Stint Modeling:</strong> Calculate fuel saving requirements and lap time costs to optimize your stint strategy. Adjust pace and fuel consumption to see how many extra laps you can gain.
+              Calculate fuel saving requirements and lap time costs to optimize your stint strategy.
             </p>
           </div>
           <div className="card">
@@ -2270,7 +2306,13 @@ const PlannerApp = () => {
 
       {activeTab === 'fuel-calculator' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+              <path d="M3 3v18h18" />
+              <path d="M18 17V9" />
+              <path d="M13 17V5" />
+              <path d="M8 17v-3" />
+            </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Calculate target fuel consumption per lap to achieve your target laps. View sensitivity analysis showing how fuel consumption variations affect possible lap counts.
             </p>
@@ -2381,60 +2423,10 @@ const PlannerApp = () => {
         </div>
       )}
 
-      {activeTab === 'release-notes' && (
-        <div className="tab-content">
-          <div className="card">
-            <h2 style={{ marginTop: 0 }}>Release Notes</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: 8, color: 'var(--accent)' }}>v0.2.0 - Fuel Calculator & Improvements</h3>
-                <ul style={{ marginTop: 8, paddingLeft: 20, color: 'var(--text-muted)' }}>
-                  <li>New Fuel Calculator tab with sensitivity analysis</li>
-                  <li>Removed outlap penalties from Setup (still used in calculations)</li>
-                  <li>Added helpful descriptions to each tab</li>
-                  <li>Improved UI clarity and organization</li>
-                </ul>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: 8, marginTop: 24, color: 'var(--accent)' }}>v0.1.0 - Initial Release</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div>
-                    <strong style={{ color: 'var(--text)' }}>Features:</strong>
-                    <ul style={{ marginTop: 4, paddingLeft: 20, color: 'var(--text-muted)' }}>
-                      <li>Multi-strategy planning (Standard, Fuel-Saving modes)</li>
-                      <li>Detailed stint planner</li>
-                      <li>Race schedule with driver assignment and lap mode selection</li>
-                      <li>Plan vs. Reality Gantt chart visualization</li>
-                      <li>Pit Stop Sandbox with dynamic fueling and tire change modeling</li>
-                      <li>Driver swap time calculation (22s)</li>
-                      <li>Formation lap fuel consumption tracking</li>
-                      <li>Out-lap penalty modeling</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <footer className="footer">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>v0.2.0</span>
-            <a 
-              href="#release-notes" 
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveTab('release-notes');
-              }}
-              style={{ 
-                fontSize: '0.75rem', 
-                color: 'var(--accent)', 
-                textDecoration: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              Release Notes
-            </a>
           </div>
         </div>
       </footer>
