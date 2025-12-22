@@ -29,8 +29,8 @@ const PlannerApp = () => {
 
   // Race duration presets
   const racePresets = [
-    { label: '1h', value: 60 },
     { label: '2h', value: 120 },
+    { label: '3h', value: 180 },
     { label: '4h', value: 240 },
     { label: '6h', value: 360 },
     { label: '8h', value: 480 },
@@ -728,54 +728,42 @@ const PlannerApp = () => {
               <h3 className="section-title">Race & Fuel Parameters</h3>
 
               {/* Race Duration with Presets */}
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                  <label className="field-label" style={{ margin: 0 }}>Race Duration</label>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>Race Duration</label>
                   <span className="help-badge" tabIndex={0}>
                     <span className="help-icon">?</span>
                     <span className="help-tooltip">Scheduled race length. Click a preset or enter custom minutes.</span>
                   </span>
                 </div>
                 
-                {/* Preset Buttons */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                  {racePresets.map(preset => (
-                    <button
-                      key={preset.value}
-                      onClick={() => setForm(prev => ({ ...prev, raceDurationMinutes: preset.value }))}
-                      className={`preset-btn ${form.raceDurationMinutes === preset.value ? 'active' : ''}`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-                
-                {/* Custom Input */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Input + Presets inline */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input
                     type="number"
                     value={form.raceDurationMinutes}
                     onChange={handleInput('raceDurationMinutes')}
                     min={10}
                     step={10}
-                    style={{
-                      width: 80,
-                      padding: '6px 10px',
-                      background: 'var(--surface-muted)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 6,
-                      color: 'var(--text)',
-                      fontSize: '0.85rem'
-                    }}
+                    className="input-field"
+                    style={{ width: 80 }}
                   />
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>min</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', opacity: 0.6 }}>
-                    = {formatDuration(form.raceDurationMinutes)}
-                  </span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>min</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {racePresets.map(preset => (
+                      <button
+                        key={preset.value}
+                        onClick={() => setForm(prev => ({ ...prev, raceDurationMinutes: preset.value }))}
+                        className={`preset-btn ${form.raceDurationMinutes === preset.value ? 'active' : ''}`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* 2x2 Grid for core params */}
+              {/* 2-column Grid for all params */}
               <div className="param-grid">
                 <InputField
                   label="Tank Capacity"
@@ -792,7 +780,7 @@ const PlannerApp = () => {
                   label="Fuel BoP"
                   type="number"
                   suffix="%"
-                  value={form.fuelBoP || 0}
+                  value={form.fuelBoP}
                   onChange={handleInput('fuelBoP')}
                   min={0}
                   max={10}
@@ -821,19 +809,18 @@ const PlannerApp = () => {
                   step={0.1}
                   helpText="Fuel consumed during formation lap."
                 />
+                <InputField
+                  label="Pit Lane Delta"
+                  type="number"
+                  suffix="sec"
+                  value={form.pitLaneDeltaSeconds}
+                  onChange={handleInput('pitLaneDeltaSeconds')}
+                  min={10}
+                  max={60}
+                  step={0.1}
+                  helpText="Time lost driving through pit lane (entry to exit)."
+                />
               </div>
-
-              <InputField
-                label="Pit Lane Delta"
-                type="number"
-                suffix="sec"
-                value={form.pitLaneDeltaSeconds}
-                onChange={handleInput('pitLaneDeltaSeconds')}
-                min={10}
-                max={60}
-                step={0.1}
-                helpText="Time lost driving through pit lane (entry to exit)."
-              />
             </div>
 
             {/* Strategy Modes */}
@@ -842,8 +829,7 @@ const PlannerApp = () => {
 
               {/* Standard - Blue */}
               <div className="strategy-card strategy-standard">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <span className="strategy-dot" style={{ background: '#1ea7ff' }}></span>
+                <div style={{ marginBottom: 12 }}>
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1ea7ff' }}>Standard</span>
                 </div>
                 <div className="strategy-inputs">
@@ -870,8 +856,7 @@ const PlannerApp = () => {
 
               {/* Fuel-Saving - Green */}
               <div className="strategy-card strategy-fuel-saving">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <span className="strategy-dot" style={{ background: '#10b981' }}></span>
+                <div style={{ marginBottom: 12 }}>
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>Fuel-Saving</span>
                 </div>
                 <div className="strategy-inputs">
@@ -898,8 +883,7 @@ const PlannerApp = () => {
 
               {/* Extra Fuel-Saving - Purple */}
               <div className="strategy-card strategy-extra">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <span className="strategy-dot" style={{ background: '#a855f7' }}></span>
+                <div style={{ marginBottom: 12 }}>
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a855f7' }}>Extra Fuel-Saving</span>
                 </div>
                 <div className="strategy-inputs">

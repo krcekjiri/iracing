@@ -339,6 +339,22 @@ select:focus {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
+.input-field {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: 0.85rem;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 .pill-toggle {
   display: inline-flex;
   background: var(--surface-muted);
