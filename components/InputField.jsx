@@ -23,6 +23,18 @@ const InputField = ({
           onChange(syntheticEvent);
         }
       }
+    } else if (type === 'number' && e.target.value !== '' && label === 'Tank Capacity') {
+      // For Tank Capacity: validate range 10-150 on blur
+      const numValue = parseFloat(e.target.value);
+      if (!isNaN(numValue)) {
+        const clamped = Math.max(10, Math.min(150, numValue));
+        if (clamped !== numValue && onChange) {
+          const syntheticEvent = {
+            target: { value: String(clamped), type: 'number' }
+          };
+          onChange(syntheticEvent);
+        }
+      }
     }
   };
 

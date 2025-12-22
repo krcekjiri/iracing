@@ -131,30 +131,30 @@ const DetailedStintPlanner = ({
 
               {/* Lap Range */}
               <div style={{ width: '70px', flexShrink: 0 }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
+                <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Range
                 </div>
-                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-sm)', color: '#94a3b8' }}>
                   {stint.startLap}–{stint.endLap}
                 </div>
               </div>
 
               {/* Stint Length */}
               <div style={{ width: '50px', flexShrink: 0 }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
+                <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Laps
                 </div>
-                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-sm)', color: '#94a3b8' }}>
                   {stint.laps}
                 </div>
               </div>
 
               {/* Duration */}
               <div style={{ width: '80px', flexShrink: 0 }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
+                <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Duration
                 </div>
-                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-sm)', color: '#94a3b8' }}>
                   {formatDuration(stint.stintDuration || 0)}
                 </div>
               </div>
@@ -164,21 +164,21 @@ const DetailedStintPlanner = ({
 
               {/* Start Fuel */}
               <div style={{ width: '70px', textAlign: 'right' }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
+                <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Start
                 </div>
-                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
-                  {fuelStart.toFixed(2)}<span style={{ fontSize: 'var(--font-xs)', opacity: 0.6, marginLeft: '3px', fontFamily: 'inherit' }}>L</span>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-sm)', color: '#94a3b8' }}>
+                  {fuelStart.toFixed(2)}<span style={{ fontSize: '0.65rem', opacity: 0.6, marginLeft: '3px', fontFamily: 'inherit' }}>L</span>
                 </div>
               </div>
 
               {/* End Fuel */}
               <div style={{ width: '70px', textAlign: 'right' }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
+                <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   End
                 </div>
-                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
-                  {roundTo(stint.fuelLeft || 0, 2).toFixed(2)}<span style={{ fontSize: 'var(--font-xs)', opacity: 0.6, marginLeft: '3px', fontFamily: 'inherit' }}>L</span>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-sm)', color: '#94a3b8' }}>
+                  {roundTo(stint.fuelLeft || 0, 2).toFixed(2)}<span style={{ fontSize: '0.65rem', opacity: 0.6, marginLeft: '3px', fontFamily: 'inherit' }}>L</span>
                 </div>
               </div>
 

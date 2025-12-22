@@ -126,7 +126,7 @@ p {
 
 .tabs button {
   flex: 1;
-  padding: 14px 28px;
+  padding: 10px 28px;
   background: transparent;
   border: none;
   border-radius: 8px;
@@ -272,9 +272,9 @@ p {
   height: 100%;
   border-radius: 50%;
   font-size: 0.75rem;
-  color: #cbd5e1;
-  background: transparent;
-  border: none;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 @keyframes spin {

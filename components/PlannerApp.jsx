@@ -390,7 +390,7 @@ const PlannerApp = () => {
     
     // Define constraints for each field with exact values
     const constraints = {
-      tankCapacity: { min: 10, max: 150, step: 1 },
+      // tankCapacity: NO CONSTRAINTS - allow any value between 10-150, user can type freely
       fuelBoP: { min: 0, max: 3, step: 0.25 },
       fuelReserveLiters: { min: 0, max: 1, step: 0.1 },
       formationLapFuel: { min: 0, max: 3, step: 0.1 },
@@ -426,6 +426,19 @@ const PlannerApp = () => {
           }));
         } else {
           // Invalid number - set to min on blur, but allow empty during typing
+          setForm((prev) => ({
+            ...prev,
+            [field]: '',
+          }));
+        }
+      } else if (field === 'tankCapacity') {
+        // Tank Capacity: allow any value, but validate on blur (handled in InputField onBlur)
+        if (!isNaN(numValue)) {
+          setForm((prev) => ({
+            ...prev,
+            [field]: numValue,
+          }));
+        } else {
           setForm((prev) => ({
             ...prev,
             [field]: '',
@@ -742,14 +755,14 @@ const PlannerApp = () => {
               disabled={isCalculatingStrategy}
               style={{
                 padding: '10px 20px',
-                background: isCalculatingStrategy ? 'var(--surface-muted)' : 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
+                background: isCalculatingStrategy ? 'var(--surface-muted)' : 'linear-gradient(135deg, #3b82f6, #2563eb)',
                 border: 'none',
                 borderRadius: 8,
                 color: '#fff',
                 fontSize: 'var(--font-base)',
                 fontWeight: 600,
                 cursor: isCalculatingStrategy ? 'wait' : 'pointer',
-                boxShadow: isCalculatingStrategy ? 'none' : '0 4px 12px rgba(251, 191, 36, 0.3)',
+                boxShadow: isCalculatingStrategy ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)',
                 transition: 'all 0.2s ease',
                 marginLeft: 16,
                 display: 'flex',
@@ -760,13 +773,13 @@ const PlannerApp = () => {
               onMouseEnter={(e) => {
                 if (!isCalculatingStrategy) {
                   e.target.style.transform = 'translateY(-1px)';
-                  e.target.style.boxShadow = '0 6px 16px rgba(251, 191, 36, 0.4)';
+                  e.target.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isCalculatingStrategy) {
                   e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.3)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
                 }
               }}
             >
@@ -840,9 +853,6 @@ const PlannerApp = () => {
                   suffix="L"
                   value={form.tankCapacity}
                   onChange={handleInput('tankCapacity')}
-                  min={10}
-                  max={200}
-                  step={1}
                   helpText="Base fuel tank capacity before BoP adjustments."
                 />
                 <InputField
@@ -1078,10 +1088,10 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6" />
+              <path d="M12 18h.01" />
+              <circle cx="12" cy="12" r="2" />
             </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Model pit stop times by configuring tire changes, fuel amounts, and driver swaps. See which service is the bottleneck and optimize your pit strategy.
@@ -1393,8 +1403,10 @@ const PlannerApp = () => {
         <div className="tab-content">
               <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-              <path d="M12 2v20M2 12h20" />
-              <circle cx="12" cy="12" r="2" />
+              <path d="M3 3v18h18" />
+              <path d="M18 17V9" />
+              <path d="M13 17V5" />
+              <path d="M8 17v-3" />
             </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Calculate fuel saving requirements and lap time costs to optimize your stint strategy.
@@ -2316,8 +2328,8 @@ const PlannerApp = () => {
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-              <line x1="12" y1="22.08" x2="12" y2="12" />
+              <path d="M12 22V12" />
+              <path d="M22 12L12 2L2 12" />
             </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Calculate target fuel consumption per lap to achieve your target laps. View sensitivity analysis showing how fuel consumption variations affect possible lap counts.
