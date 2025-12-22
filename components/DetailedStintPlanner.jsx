@@ -184,11 +184,11 @@ const DetailedStintPlanner = ({
 
               {/* Target */}
               <div style={{ width: '85px', textAlign: 'right' }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
+                <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Target
                 </div>
-                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', fontWeight: 600, color: '#94a3b8' }}>
-                  {perLapDisplay}<span style={{ fontSize: 'var(--font-xs)', fontWeight: 400, opacity: 0.7, marginLeft: '3px', fontFamily: 'inherit' }}>L/lap</span>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-sm)', fontWeight: 600, color: '#94a3b8' }}>
+                  {perLapDisplay}<span style={{ fontSize: '0.65rem', fontWeight: 400, opacity: 0.7, marginLeft: '3px', fontFamily: 'inherit' }}>L/lap</span>
                 </div>
               </div>
             </div>
