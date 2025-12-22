@@ -60,7 +60,7 @@ const DetailedStintPlanner = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: '#e2e8f0' }}>
+      <h2 style={{ fontSize: 'var(--font-lg)', fontWeight: 600, marginBottom: '8px', color: '#e2e8f0', fontFamily: 'inherit' }}>
         Stint Plan
       </h2>
 
@@ -107,7 +107,7 @@ const DetailedStintPlanner = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 600,
-                  fontSize: '14px',
+                  fontSize: 'var(--font-sm)',
                   flexShrink: 0
                 }}
               >
@@ -118,7 +118,7 @@ const DetailedStintPlanner = ({
               <div style={{ width: '120px', flexShrink: 0 }}>
                 <span
                   style={{
-                    fontSize: '12px',
+                    fontSize: 'var(--font-xs)',
                     fontWeight: 600,
                     letterSpacing: '0.05em',
                     color: modeStyle.color,
@@ -131,30 +131,30 @@ const DetailedStintPlanner = ({
 
               {/* Lap Range */}
               <div style={{ width: '70px', flexShrink: 0 }}>
-                <div style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Range
                 </div>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
                   {stint.startLap}–{stint.endLap}
                 </div>
               </div>
 
               {/* Stint Length */}
               <div style={{ width: '50px', flexShrink: 0 }}>
-                <div style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Laps
                 </div>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
                   {stint.laps}
                 </div>
               </div>
 
               {/* Duration */}
               <div style={{ width: '80px', flexShrink: 0 }}>
-                <div style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Duration
                 </div>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
                   {formatDuration(stint.stintDuration || 0)}
                 </div>
               </div>
@@ -164,31 +164,31 @@ const DetailedStintPlanner = ({
 
               {/* Start Fuel */}
               <div style={{ width: '70px', textAlign: 'right' }}>
-                <div style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Start
                 </div>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
-                  {fuelStart.toFixed(2)}<span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '3px' }}>L</span>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
+                  {fuelStart.toFixed(2)}<span style={{ fontSize: 'var(--font-xs)', opacity: 0.6, marginLeft: '3px', fontFamily: 'inherit' }}>L</span>
                 </div>
               </div>
 
               {/* End Fuel */}
               <div style={{ width: '70px', textAlign: 'right' }}>
-                <div style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   End
                 </div>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
-                  {roundTo(stint.fuelLeft || 0, 2).toFixed(2)}<span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '3px' }}>L</span>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
+                  {roundTo(stint.fuelLeft || 0, 2).toFixed(2)}<span style={{ fontSize: 'var(--font-xs)', opacity: 0.6, marginLeft: '3px', fontFamily: 'inherit' }}>L</span>
                 </div>
               </div>
 
               {/* Target */}
               <div style={{ width: '85px', textAlign: 'right' }}>
-                <div style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+                <div style={{ fontSize: 'var(--font-xs)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', fontFamily: 'inherit' }}>
                   Target
                 </div>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 600, color: '#94a3b8' }}>
-                  {perLapDisplay}<span style={{ fontSize: '9px', fontWeight: 400, opacity: 0.7, marginLeft: '3px' }}>L/lap</span>
+                <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', fontWeight: 600, color: '#94a3b8' }}>
+                  {perLapDisplay}<span style={{ fontSize: 'var(--font-xs)', fontWeight: 400, opacity: 0.7, marginLeft: '3px', fontFamily: 'inherit' }}>L/lap</span>
                 </div>
               </div>
             </div>
@@ -205,15 +205,15 @@ const DetailedStintPlanner = ({
                   color: '#64748b'
                 }}
               >
-                <span style={{ fontSize: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: 'var(--font-xs)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'inherit' }}>
                   Pit Stop {idx + 1}
                 </span>
                 <FuelIcon />
-                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8' }}>
+                <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
                   +{roundTo(fuelToAdd, 1)}L
                 </span>
                 <ClockIcon />
-                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8' }}>
+                <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace', fontSize: 'var(--font-xs)', color: '#94a3b8' }}>
                   {pitStopDuration}s
                 </span>
               </div>

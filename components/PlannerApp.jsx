@@ -591,7 +591,7 @@ const PlannerApp = () => {
     return (
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>
+          <label className="field-label" style={{ margin: 0, fontSize: 'var(--font-sm)' }}>
             {label}
           </label>
           {helpText && (
@@ -639,7 +639,7 @@ const PlannerApp = () => {
             style={{ 
               width: '80px', 
               padding: '4px 6px',
-              fontSize: '0.85rem',
+              fontSize: 'var(--font-sm)',
               background: 'var(--surface-muted)',
               border: '1px solid var(--border)',
               borderRadius: 6,
@@ -734,7 +734,7 @@ const PlannerApp = () => {
               <path d="M12 1v6m0 6v6M1 12h6m6 0h6" />
               <path d="M19.07 4.93l-4.24 4.24M4.93 19.07l4.24-4.24M19.07 19.07l-4.24-4.24M4.93 4.93l4.24 4.24" />
             </svg>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', flex: 1 }}>
+            <p style={{ margin: 0, fontSize: 'var(--font-sm)', color: 'var(--text-muted)', flex: 1 }}>
               Configure race parameters and strategy modes. Click <strong style={{ color: 'var(--accent)' }}>Calculate Strategy</strong> to generate your race plan.
             </p>
             <button
@@ -746,7 +746,7 @@ const PlannerApp = () => {
                 border: 'none',
                 borderRadius: 8,
                 color: '#fff',
-                fontSize: '0.9rem',
+                fontSize: 'var(--font-base)',
                 fontWeight: 600,
                 cursor: isCalculatingStrategy ? 'wait' : 'pointer',
                 boxShadow: isCalculatingStrategy ? 'none' : '0 4px 12px rgba(251, 191, 36, 0.3)',
@@ -791,7 +791,7 @@ const PlannerApp = () => {
               {/* Race Duration with Presets */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                  <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>Race Duration</label>
+                  <label className="field-label" style={{ margin: 0, fontSize: 'var(--font-sm)' }}>Race Duration</label>
                   <span className="help-badge" tabIndex={0}>
                     <span className="help-icon">?</span>
                     <span className="help-tooltip">Scheduled race length. Click a preset or enter custom minutes.</span>
@@ -813,7 +813,7 @@ const PlannerApp = () => {
                       border: '1px solid rgba(255, 255, 255, 0.08)',
                       background: 'var(--surface-muted)',
                       color: '#f4f6fb',
-                      fontSize: '0.95rem',
+                      fontSize: 'var(--font-base)',
                       transition: 'border 0.2s ease, box-shadow 0.2s ease'
                     }}
                   />
@@ -889,14 +889,14 @@ const PlannerApp = () => {
               </div>
             </div>
 
-            {/* Strategy Modes */}
+            {/* Stint Modes */}
             <div className="card">
-              <h3 className="section-title">Strategy Modes</h3>
+              <h3 className="section-title">Stint Modes</h3>
 
               {/* Standard - Blue */}
               <div className="strategy-card strategy-standard">
                 <div style={{ marginBottom: 12 }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1ea7ff' }}>Standard</span>
+                  <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: '#1ea7ff' }}>Standard</span>
                 </div>
                 <div className="strategy-inputs">
                   <InputField
@@ -923,7 +923,7 @@ const PlannerApp = () => {
               {/* Fuel-Saving - Green */}
               <div className="strategy-card strategy-fuel-saving">
                 <div style={{ marginBottom: 12 }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>Fuel-Saving</span>
+                  <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: '#10b981' }}>Fuel-Saving</span>
                 </div>
                 <div className="strategy-inputs">
                   <InputField
@@ -950,7 +950,7 @@ const PlannerApp = () => {
               {/* Extra Fuel-Saving - Purple */}
               <div className="strategy-card strategy-extra">
                 <div style={{ marginBottom: 12 }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a855f7' }}>Extra Fuel-Saving</span>
+                  <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: '#a855f7' }}>Extra Fuel-Saving</span>
                 </div>
                 <div className="strategy-inputs">
                   <InputField
@@ -981,7 +981,7 @@ const PlannerApp = () => {
                 background: 'rgba(251, 191, 36, 0.08)',
                 borderRadius: 6,
                 border: '1px solid rgba(251, 191, 36, 0.15)',
-                fontSize: '0.8rem',
+                fontSize: 'var(--font-xs)',
                 color: 'var(--text-muted)',
               }}>
                 💡 Fine-tune lap times per stint in <strong 
@@ -1009,7 +1009,7 @@ const PlannerApp = () => {
               gap: 8
             }}>
               <span style={{ fontSize: '1.2rem' }}>✓</span>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: '#10b981', fontWeight: 500 }}>
+              <p style={{ margin: 0, fontSize: 'var(--font-base)', color: '#10b981', fontWeight: 500 }}>
                 Strategy calculated successfully! View your results below.
               </p>
             </div>
@@ -1153,7 +1153,7 @@ const PlannerApp = () => {
                         onChange={(e) => updatePitSandbox('driverSwap', e.target.checked)}
                         style={{ width: 18, height: 18, cursor: 'pointer' }}
                       />
-                      <span className="field-label" style={{ fontSize: '0.85rem', margin: 0 }}>
+                      <span className="field-label" style={{ fontSize: 'var(--font-sm)', margin: 0 }}>
                         Driver Swap
                       </span>
                     </label>
@@ -1189,7 +1189,7 @@ const PlannerApp = () => {
                   
                   {/* 5. Tire Change */}
                   <div style={{ marginTop: 8, padding: 12, background: 'rgba(251, 191, 36, 0.05)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)' }}>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>Tire Change</h4>
+                    <h4 style={{ fontSize: 'var(--font-sm)', fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>Tire Change</h4>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                       <span className="stat-label" style={{ fontSize: '0.75rem' }}>Pit Wall Side</span>
                       <span className="help-badge" tabIndex={0}>
@@ -1769,11 +1769,11 @@ const PlannerApp = () => {
                                 { label: '+1 lap', laps: stdLaps + 1, consumption: usableFuel / (stdLaps + 1) },
                                 { label: '+2 laps', laps: stdLaps + 2, consumption: usableFuel / (stdLaps + 2) },
                               ];
-                              // Color mapping: Standard (blue), +1 lap (green), +2 laps (yellow)
+                              // Color mapping: Standard (blue), +1 lap (green), +2 laps (purple)
                               const colors = [
                                 { bg: 'rgba(59, 130, 246, 0.15)', border: 'rgba(59, 130, 246, 0.35)', text: '#3b82f6' }, // Standard - blue
                                 { bg: 'rgba(34, 197, 94, 0.15)', border: 'rgba(34, 197, 94, 0.35)', text: '#22c55e' }, // +1 lap - green
-                                { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 0.35)', text: '#f59e0b' }, // +2 laps - yellow
+                                { bg: 'rgba(168, 85, 247, 0.15)', border: 'rgba(168, 85, 247, 0.35)', text: '#a855f7' }, // +2 laps - purple
                               ];
                               return targets.map((target, idx) => {
                                 const achieved = saveFuel <= target.consumption;

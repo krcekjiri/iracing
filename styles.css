@@ -13,6 +13,13 @@
   --text-muted: #9db7d8;
   --border: rgba(255, 255, 255, 0.1);
   --glow: 0 12px 30px rgba(251, 191, 36, 0.25);
+  
+  /* Standardized font sizes - 5 sizes total */
+  --font-xs: 0.75rem;    /* 12px - labels, small text */
+  --font-sm: 0.875rem;   /* 14px - body text, descriptions */
+  --font-base: 1rem;     /* 16px - default, buttons */
+  --font-lg: 1.125rem;   /* 18px - headings, titles */
+  --font-xl: 1.25rem;    /* 20px - large headings */
 }
 
 * {
@@ -264,8 +271,8 @@ p {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  font-size: 0.65rem;
-  color: var(--text-muted);
+  font-size: 0.75rem;
+  color: #cbd5e1;
   background: transparent;
   border: none;
 }

@@ -263,7 +263,7 @@ const StrategyTab = ({
           <path d="M3 13h8v8H3z" />
           <path d="M13 13h8v8h-8z" />
         </svg>
-        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        <p style={{ margin: 0, fontSize: 'var(--font-sm)', color: 'var(--text-muted)', fontFamily: 'inherit' }}>
           Compare strategy options and select one to view detailed stint plan. Click strategy cards or rows in the comparison table to see detailed breakdown.
         </p>
       </div>
@@ -316,7 +316,7 @@ const StrategyTab = ({
                       padding: '2px 8px',
                       background: `rgba(${strategy.color === '#1ea7ff' ? '30, 167, 255' : '16, 185, 129'}, 0.3)`,
                       color: strategy.color,
-                      fontSize: '0.75rem',
+                      fontSize: 'var(--font-xs)',
                       borderRadius: '4px',
                       fontWeight: 600,
                     }}>
@@ -336,7 +336,7 @@ const StrategyTab = ({
                           borderRadius: '50%',
                           background: strategy.color,
                           color: '#071321',
-                          fontSize: '0.65rem',
+                          fontSize: 'var(--font-xs)',
                           fontWeight: 700,
                           flexShrink: 0,
                         }}
@@ -355,7 +355,7 @@ const StrategyTab = ({
                       minHeight: '200px',
                       textAlign: 'center',
                       color: 'var(--text-muted)',
-                      fontSize: '0.95rem',
+                      fontSize: 'var(--font-base)',
                       padding: '20px',
                     }}>
                       No fuel-saving strategy needed. You can push like an animal!
