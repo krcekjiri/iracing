@@ -256,7 +256,7 @@ const StrategyTab = ({
 
   return (
     <div className="tab-content">
-      <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+      <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)' }}>
         <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           Compare strategy options and select one to view detailed stint plan. Click strategy cards or rows in the comparison table to see detailed breakdown.
         </p>
@@ -414,7 +414,7 @@ const StrategyTab = ({
       </div>
 
       {/* Strategy Comparison Table */}
-      {allStrategies.length > 1 && (
+      {allStrategies.length > 0 ? (
         <StrategyComparisonTable 
           strategies={allStrategies}
           capacities={capacities}
@@ -422,6 +422,10 @@ const StrategyTab = ({
           onSelectStrategy={handleStrategySelect}
           bestFuelSavingIndex={bestFuelSavingIndex > 0 ? bestFuelSavingIndex : null}
         />
+      ) : (
+        <div style={{ padding: '24px', color: 'var(--text-muted)', textAlign: 'center' }}>
+          No strategies available. Please calculate strategy from Setup tab.
+        </div>
       )}
 
       {/* Detailed Stint Planner */}

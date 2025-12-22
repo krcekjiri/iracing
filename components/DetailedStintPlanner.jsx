@@ -33,7 +33,7 @@ const DetailedStintPlanner = ({
       case 'fuel-saving':
         return { color: '#34d399', label: 'FUEL SAVE', bg: 'rgba(52, 211, 153, 0.08)', border: 'rgba(52, 211, 153, 0.25)', badgeBg: 'rgba(52, 211, 153, 0.15)' };
       case 'extra-fuel-saving':
-        return { color: '#fbbf24', label: 'EXTRA FUEL SAVE', bg: 'rgba(251, 191, 36, 0.08)', border: 'rgba(251, 191, 36, 0.25)', badgeBg: 'rgba(251, 191, 36, 0.15)' };
+        return { color: '#a855f7', label: 'EXTRA FUEL SAVE', bg: 'rgba(168, 85, 247, 0.08)', border: 'rgba(168, 85, 247, 0.25)', badgeBg: 'rgba(168, 85, 247, 0.15)' };
       default:
         return { color: '#3b82f6', label: 'STANDARD', bg: 'rgba(59, 130, 246, 0.08)', border: 'rgba(59, 130, 246, 0.25)', badgeBg: 'rgba(59, 130, 246, 0.15)' };
     }

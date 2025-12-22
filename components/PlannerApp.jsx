@@ -120,12 +120,16 @@ const PlannerApp = () => {
   }, [stintModelling]);
   const [activeTab, setActiveTab] = useState('setup');
   const [selectedStrategy, setSelectedStrategy] = useState('standard');
-  const [pitSandbox, setPitSandbox] = useState({
-    pitWallSide: 'right',
-    tires: { LF: true, RF: true, LR: true, RR: true },
-    fuelBefore: '1',
-    fuelToAdd: '99',
-    driverSwap: true,
+  const [pitSandbox, setPitSandbox] = useState(() => {
+    const initialForm = loadFromStorage('form', defaultForm);
+    return {
+      pitWallSide: 'right',
+      tires: { LF: true, RF: true, LR: true, RR: true },
+      fuelBefore: '1',
+      fuelToAdd: String(initialForm.tankCapacity || 106),
+      pitLaneDelta: String(initialForm.pitLaneDeltaSeconds || 27),
+      driverSwap: true,
+    };
   });
 
   const standardResult = useMemo(() => {
@@ -400,15 +404,32 @@ const PlannerApp = () => {
     
     // For number inputs, handle empty values and invalid numbers more gracefully
     if (type === 'number' || typeof value === 'number') {
+      // Allow empty string for typing (will be handled on blur)
+      if (value === '' && typeof value === 'string') {
+        setForm((prev) => ({
+          ...prev,
+          [field]: '',
+        }));
+        return;
+      }
+      
       const numValue = typeof value === 'number' ? value : parseFloat(value);
       
       if (constraint) {
-        // Apply constraints - clamp value to min/max range
-        const clamped = Math.max(constraint.min, Math.min(constraint.max, numValue || constraint.min));
-        setForm((prev) => ({
-          ...prev,
-          [field]: clamped,
-        }));
+        // Only clamp if we have a valid number
+        if (!isNaN(numValue)) {
+          const clamped = Math.max(constraint.min, Math.min(constraint.max, numValue));
+          setForm((prev) => ({
+            ...prev,
+            [field]: clamped,
+          }));
+        } else {
+          // Invalid number - set to min on blur, but allow empty during typing
+          setForm((prev) => ({
+            ...prev,
+            [field]: '',
+          }));
+        }
       } else if (field === 'raceDurationMinutes') {
         // Race duration specific handling (legacy support)
         const numValue = parseFloat(value);
@@ -694,7 +715,10 @@ const PlannerApp = () => {
 
       {activeTab === 'setup' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', flex: 1 }}>
+              Configure race parameters and strategy modes. Click <strong style={{ color: 'var(--accent)' }}>Calculate Strategy</strong> to generate your race plan.
+            </p>
             <button
               onClick={handleConfirmForm}
               style={{
@@ -707,7 +731,8 @@ const PlannerApp = () => {
                 fontWeight: 600,
                 cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(251, 191, 36, 0.3)',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                marginLeft: 16
               }}
               onMouseEnter={(e) => {
                 e.target.style.transform = 'translateY(-1px)';
@@ -745,8 +770,16 @@ const PlannerApp = () => {
                     onChange={handleInput('raceDurationMinutes')}
                     min={10}
                     step={10}
-                    className="input-field"
-                    style={{ width: 80 }}
+                    style={{
+                      width: '80px',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: 'var(--surface-muted)',
+                      color: '#f4f6fb',
+                      fontSize: '0.95rem',
+                      transition: 'border 0.2s ease, box-shadow 0.2s ease'
+                    }}
                   />
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>min</span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -918,7 +951,10 @@ const PlannerApp = () => {
                 fontSize: '0.8rem',
                 color: 'var(--text-muted)',
               }}>
-                💡 Fine-tune lap times per stint in <strong style={{ color: '#fbbf24' }}>Stint Model</strong> tab.
+                💡 Fine-tune lap times per stint in <strong 
+                  style={{ color: '#fbbf24', cursor: 'pointer', textDecoration: 'underline' }}
+                  onClick={() => setActiveTab('lap-times')}
+                >Stint Model</strong> tab.
               </div>
             </div>
           </div>
@@ -1316,9 +1352,9 @@ const PlannerApp = () => {
 
       {activeTab === 'lap-times' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+              <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)' }}>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              <strong>"What If" Sandbox:</strong> Model your stints to see exactly how much you need to save per lap to gain an extra lap, and what it costs in lap time.
+              <strong>Stint Modeling:</strong> Calculate fuel saving requirements and lap time costs to optimize your stint strategy. Adjust pace and fuel consumption to see how many extra laps you can gain.
             </p>
           </div>
           <div className="card">
