@@ -28,6 +28,132 @@ const PlannerApp = () => {
   const [showStrategyCalculated, setShowStrategyCalculated] = useState(false);
   const [isCalculatingStrategy, setIsCalculatingStrategy] = useState(false);
 
+  // Validation function - returns { errors: [], warnings: [] }
+  const validateForm = (form) => {
+    const errors = []; // Hard stops - block calculation
+    const warnings = []; // Soft warnings - allow but warn
+    
+    const tankCapacity = Number(form.tankCapacity) || 0;
+    const fuelBoP = Number(form.fuelBoP) || 0;
+    const effectiveTank = tankCapacity * (1 - fuelBoP / 100);
+    const fuelReserve = Number(form.fuelReserveLiters) || 0;
+    const fuelPerLap = Number(form.fuelPerLap) || 0;
+    const fuelSavingFuelPerLap = Number(form.fuelSavingFuelPerLap) || 0;
+    const extraFuelSavingFuelPerLap = Number(form.extraFuelSavingFuelPerLap) || 0;
+    const pitLaneDelta = Number(form.pitLaneDeltaSeconds) || 0;
+    const formationLapFuel = Number(form.formationLapFuel) || 0;
+    const raceDuration = Number(form.raceDurationMinutes) || 0;
+    
+    // === HARD STOPS (errors) ===
+    
+    // Tank capacity
+    if (tankCapacity <= 0) {
+      errors.push({ field: 'tankCapacity', message: 'Tank capacity must be greater than 0' });
+    }
+    
+    // Fuel BoP
+    if (fuelBoP >= 100) {
+      errors.push({ field: 'fuelBoP', message: 'Fuel BoP cannot be 100% or more (no usable tank)' });
+    }
+    if (fuelBoP < 0) {
+      errors.push({ field: 'fuelBoP', message: 'Fuel BoP cannot be negative' });
+    }
+    
+    // Fuel reserve vs effective tank
+    if (fuelReserve >= effectiveTank && effectiveTank > 0) {
+      errors.push({ field: 'fuelReserveLiters', message: `Reserve (${fuelReserve}L) must be less than effective tank (${effectiveTank.toFixed(1)}L)` });
+    }
+    
+    // Fuel per lap validations
+    if (fuelPerLap <= 0) {
+      errors.push({ field: 'fuelPerLap', message: 'Standard fuel/lap must be greater than 0' });
+    }
+    if (fuelPerLap >= effectiveTank && effectiveTank > 0) {
+      errors.push({ field: 'fuelPerLap', message: `Fuel/lap (${fuelPerLap}L) exceeds effective tank (${effectiveTank.toFixed(1)}L)` });
+    }
+    
+    // Lap time validation
+    const lapTimeSeconds = parseLapTime(form.averageLapTime);
+    if (!lapTimeSeconds || lapTimeSeconds <= 0) {
+      errors.push({ field: 'averageLapTime', message: 'Invalid lap time format (use MM:SS.sss)' });
+    }
+    
+    // Race duration
+    if (raceDuration <= 0) {
+      errors.push({ field: 'raceDurationMinutes', message: 'Race duration must be greater than 0' });
+    }
+    
+    // Pit lane delta
+    if (pitLaneDelta < 0) {
+      errors.push({ field: 'pitLaneDeltaSeconds', message: 'Pit lane delta cannot be negative' });
+    }
+    
+    // === SOFT WARNINGS ===
+    
+    // Fuel BoP warnings
+    if (fuelBoP > 5 && fuelBoP < 100) {
+      warnings.push({ field: 'fuelBoP', message: `${fuelBoP}% BoP is unusually high - verify series rules` });
+    }
+    
+    // Fuel reserve warnings
+    if (fuelReserve > 2 && fuelReserve < effectiveTank) {
+      warnings.push({ field: 'fuelReserveLiters', message: `${fuelReserve}L reserve is quite high - typical is 0.3-0.5L` });
+    }
+    
+    // Formation lap fuel warnings
+    if (formationLapFuel > 4) {
+      warnings.push({ field: 'formationLapFuel', message: `${formationLapFuel}L seems high for formation lap` });
+    }
+    
+    // Pit lane delta warnings
+    if (pitLaneDelta > 0 && pitLaneDelta < 15) {
+      warnings.push({ field: 'pitLaneDeltaSeconds', message: `${pitLaneDelta}s is very short - verify measurement` });
+    }
+    if (pitLaneDelta > 45) {
+      warnings.push({ field: 'pitLaneDeltaSeconds', message: `${pitLaneDelta}s is unusually long - verify measurement` });
+    }
+    
+    // Fuel consumption warnings
+    if (fuelPerLap > 6) {
+      warnings.push({ field: 'fuelPerLap', message: `${fuelPerLap}L/lap is very high consumption` });
+    }
+    
+    // Fuel saving mode consistency
+    if (fuelSavingFuelPerLap > 0 && fuelSavingFuelPerLap >= fuelPerLap) {
+      warnings.push({ field: 'fuelSavingFuelPerLap', message: 'Fuel-saving should use less fuel than standard' });
+    }
+    if (extraFuelSavingFuelPerLap > 0 && fuelSavingFuelPerLap > 0 && extraFuelSavingFuelPerLap >= fuelSavingFuelPerLap) {
+      warnings.push({ field: 'extraFuelSavingFuelPerLap', message: 'Extra fuel-saving should use less fuel than fuel-saving' });
+    }
+    
+    // Lap time warnings for fuel saving modes
+    const fuelSavingLapTime = parseLapTime(form.fuelSavingLapTime);
+    const extraFuelSavingLapTime = parseLapTime(form.extraFuelSavingLapTime);
+    if (fuelSavingLapTime > 0 && lapTimeSeconds > 0 && fuelSavingLapTime <= lapTimeSeconds) {
+      warnings.push({ field: 'fuelSavingLapTime', message: 'Fuel-saving lap time should be slower than standard' });
+    }
+    if (extraFuelSavingLapTime > 0 && fuelSavingLapTime > 0 && extraFuelSavingLapTime <= fuelSavingLapTime) {
+      warnings.push({ field: 'extraFuelSavingLapTime', message: 'Extra fuel-saving should be slower than fuel-saving' });
+    }
+    
+    // Stint length sanity check
+    if (fuelPerLap > 0 && effectiveTank > 0 && fuelReserve >= 0) {
+      const lapsPerStint = Math.floor((effectiveTank - fuelReserve) / fuelPerLap);
+      if (lapsPerStint < 3) {
+        warnings.push({ field: 'fuelPerLap', message: `Only ${lapsPerStint} laps per stint - check fuel consumption` });
+      }
+    }
+    
+    return { errors, warnings };
+  };
+
+  // Helper to get field-specific validation state
+  const getFieldValidation = (validation, fieldName) => {
+    const error = validation.errors.find(e => e.field === fieldName);
+    const warning = validation.warnings.find(w => w.field === fieldName);
+    return { error, warning };
+  };
+
   // Race duration presets
   const racePresets = [
     { label: '2h', value: 120 },
@@ -377,108 +503,40 @@ const PlannerApp = () => {
       ? result.lapsPerStint * (result.fuelPerLap || 0) + reservePerStint
       : 0;
 
+  // CRITICAL: Allow empty strings and partial numbers during typing
+  // Don't convert to number immediately - store as string for number fields
   const handleInput = (field) => (eventOrValue) => {
-    // Support both event objects and direct numeric values
-    let value, type;
+    let value;
     if (typeof eventOrValue === 'number') {
       value = eventOrValue;
-      type = 'number';
     } else {
       value = eventOrValue.target.value;
-      type = eventOrValue.target.type;
     }
     
-    // Define constraints for each field with exact values
-    const constraints = {
-      // tankCapacity: NO CONSTRAINTS - allow any value between 10-150, user can type freely
-      // fuelBoP: NO CONSTRAINTS - allow any value, user can type freely
-      // fuelReserveLiters: NO CONSTRAINTS - allow any value, user can type freely
-      // formationLapFuel: NO CONSTRAINTS - allow any value, user can type freely
-      // pitLaneDeltaSeconds: NO CONSTRAINTS - allow any value up to 2 digits
-      raceDurationMinutes: { min: 60, max: 1440, step: 10 },
-      fuelPerLap: { min: 0.1, max: 10, step: 0.01 },
-      fuelSavingFuelPerLap: { min: 0.1, max: 10, step: 0.01 },
-      extraFuelSavingFuelPerLap: { min: 0.1, max: 10, step: 0.01 },
-    };
-    
-    const constraint = constraints[field];
-    
-    // For number inputs, handle empty values and invalid numbers more gracefully
-    if (type === 'number' || typeof value === 'number') {
-      // Allow empty string for typing (will be handled on blur)
-      if (value === '' && typeof value === 'string') {
-        setForm((prev) => ({
-          ...prev,
-          [field]: '',
-        }));
-        return;
-      }
-      
-      const numValue = typeof value === 'number' ? value : parseFloat(value);
-      
-      if (constraint) {
-        // Only clamp if we have a valid number
-        if (!isNaN(numValue)) {
-          const clamped = Math.max(constraint.min, Math.min(constraint.max, numValue));
-          setForm((prev) => ({
-            ...prev,
-            [field]: clamped,
-          }));
-        } else {
-          // Invalid number - set to min on blur, but allow empty during typing
-          setForm((prev) => ({
-            ...prev,
-            [field]: '',
-          }));
-        }
-      } else if (field === 'tankCapacity' || field === 'fuelBoP' || field === 'fuelReserveLiters' || field === 'formationLapFuel') {
-        // These fields: allow any value, validate on blur (handled in InputField onBlur)
-        if (!isNaN(numValue)) {
-          setForm((prev) => ({
-            ...prev,
-            [field]: numValue,
-          }));
-        } else {
-          setForm((prev) => ({
-            ...prev,
-            [field]: '',
-          }));
-        }
-      } else if (field === 'raceDurationMinutes') {
-        // Race duration specific handling (legacy support)
-        const numValue = parseFloat(value);
-        if (value === '' || isNaN(numValue) || numValue <= 0) {
-          setForm((prev) => ({
-            ...prev,
-            [field]: value === '' ? 60 : (isNaN(numValue) ? 60 : Math.max(60, numValue)),
-          }));
-        } else {
-          setForm((prev) => ({
-            ...prev,
-            [field]: numValue,
-          }));
-        }
-      } else {
-        // Allow empty for intermediate typing, but use 0 as fallback for calculations
-        const numValue = parseFloat(value);
-        if (value === '' || isNaN(numValue)) {
-          setForm((prev) => ({
-            ...prev,
-            [field]: value === '' ? '' : 0,
-          }));
-        } else {
-          setForm((prev) => ({
-            ...prev,
-            [field]: numValue,
-          }));
-        }
-      }
-    } else {
     setForm((prev) => ({
       ...prev,
-      [field]: value === '' ? '' : value,
+      [field]: value,
     }));
-    }
+  };
+
+  // Add onBlur handler for number fields to clean up values
+  const handleInputBlur = (field, defaultValue = 0) => () => {
+    setForm((prev) => {
+      const currentValue = prev[field];
+      // If empty or invalid, set to default
+      if (currentValue === '' || currentValue === null || currentValue === undefined) {
+        return { ...prev, [field]: defaultValue };
+      }
+      // If it's a string that can be parsed, parse it
+      if (typeof currentValue === 'string') {
+        const parsed = parseFloat(currentValue);
+        if (isNaN(parsed)) {
+          return { ...prev, [field]: defaultValue };
+        }
+        return { ...prev, [field]: parsed };
+      }
+      return prev;
+    });
   };
 
   const raceStartGMT = useMemo(() => {
@@ -741,58 +799,31 @@ const PlannerApp = () => {
 
       {activeTab === 'setup' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 1v6m0 6v6M1 12h6m6 0h6" />
-              <path d="M19.07 4.93l-4.24 4.24M4.93 19.07l4.24-4.24M19.07 19.07l-4.24-4.24M4.93 4.93l4.24 4.24" />
-            </svg>
-            <p style={{ margin: 0, fontSize: 'var(--font-sm)', color: 'var(--text-muted)', flex: 1 }}>
-              Configure race parameters and strategy modes. Click <strong style={{ color: 'var(--accent)' }}>Calculate Strategy</strong> to generate your race plan.
-            </p>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
             <button
               onClick={handleConfirmForm}
-              disabled={isCalculatingStrategy}
               style={{
                 padding: '10px 20px',
-                background: isCalculatingStrategy ? 'var(--surface-muted)' : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
                 border: 'none',
                 borderRadius: 8,
                 color: '#fff',
-                fontSize: 'var(--font-base)',
+                fontSize: '0.9rem',
                 fontWeight: 600,
-                cursor: isCalculatingStrategy ? 'wait' : 'pointer',
-                boxShadow: isCalculatingStrategy ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)',
-                transition: 'all 0.2s ease',
-                marginLeft: 16,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                opacity: isCalculatingStrategy ? 0.7 : 1
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(251, 191, 36, 0.3)',
+                transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => {
-                if (!isCalculatingStrategy) {
-                  e.target.style.transform = 'translateY(-1px)';
-                  e.target.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)';
-                }
+                e.target.style.transform = 'translateY(-1px)';
+                e.target.style.boxShadow = '0 6px 16px rgba(251, 191, 36, 0.4)';
               }}
               onMouseLeave={(e) => {
-                if (!isCalculatingStrategy) {
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
-                }
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.3)';
               }}
             >
-              {isCalculatingStrategy ? (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                  Calculating...
-                </>
-              ) : (
-                'Calculate Strategy'
-              )}
+              Calculate Strategy
             </button>
           </div>
           
@@ -804,7 +835,7 @@ const PlannerApp = () => {
               {/* Race Duration with Presets */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                  <label className="field-label" style={{ margin: 0, fontSize: 'var(--font-sm)' }}>Race Duration</label>
+                  <label className="field-label" style={{ margin: 0, fontSize: '0.85rem' }}>Race Duration</label>
                   <span className="help-badge" tabIndex={0}>
                     <span className="help-icon">?</span>
                     <span className="help-tooltip">Scheduled race length. Click a preset or enter custom minutes.</span>
@@ -817,18 +848,11 @@ const PlannerApp = () => {
                     type="number"
                     value={form.raceDurationMinutes}
                     onChange={handleInput('raceDurationMinutes')}
+                    onBlur={handleInputBlur('raceDurationMinutes', 60)}
                     min={10}
                     step={10}
-                    style={{
-                      width: '80px',
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                      background: 'var(--surface-muted)',
-                      color: '#f4f6fb',
-                      fontSize: 'var(--font-base)',
-                      transition: 'border 0.2s ease, box-shadow 0.2s ease'
-                    }}
+                    className="input-field"
+                    style={{ width: 80 }}
                   />
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>min</span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -853,6 +877,10 @@ const PlannerApp = () => {
                   suffix="L"
                   value={form.tankCapacity}
                   onChange={handleInput('tankCapacity')}
+                  onBlur={handleInputBlur('tankCapacity', 100)}
+                  min={10}
+                  max={200}
+                  step={1}
                   helpText="Base fuel tank capacity before BoP adjustments."
                 />
                 <InputField
@@ -861,6 +889,10 @@ const PlannerApp = () => {
                   suffix="%"
                   value={form.fuelBoP}
                   onChange={handleInput('fuelBoP')}
+                  onBlur={handleInputBlur('fuelBoP', 0)}
+                  min={0}
+                  max={10}
+                  step={0.25}
                   helpText="Balance of Performance reduction to tank capacity."
                 />
                 <InputField
@@ -869,6 +901,10 @@ const PlannerApp = () => {
                   suffix="L"
                   value={form.fuelReserveLiters}
                   onChange={handleInput('fuelReserveLiters')}
+                  onBlur={handleInputBlur('fuelReserveLiters', 0)}
+                  min={0}
+                  max={2}
+                  step={0.1}
                   helpText="Buffer to keep in tank at each stop."
                 />
                 <InputField
@@ -877,6 +913,10 @@ const PlannerApp = () => {
                   suffix="L"
                   value={form.formationLapFuel}
                   onChange={handleInput('formationLapFuel')}
+                  onBlur={handleInputBlur('formationLapFuel', 0)}
+                  min={0}
+                  max={5}
+                  step={0.1}
                   helpText="Fuel consumed during formation lap."
                 />
                 <InputField
@@ -885,19 +925,23 @@ const PlannerApp = () => {
                   suffix="sec"
                   value={form.pitLaneDeltaSeconds}
                   onChange={handleInput('pitLaneDeltaSeconds')}
+                  onBlur={handleInputBlur('pitLaneDeltaSeconds', 27)}
+                  min={10}
+                  max={60}
+                  step={0.1}
                   helpText="Time lost driving through pit lane (entry to exit)."
                 />
               </div>
             </div>
 
-            {/* Stint Modes */}
+            {/* Strategy Modes */}
             <div className="card">
-              <h3 className="section-title">Stint Modes</h3>
+              <h3 className="section-title">Strategy Modes</h3>
 
               {/* Standard - Blue */}
               <div className="strategy-card strategy-standard">
                 <div style={{ marginBottom: 12 }}>
-                  <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: '#1ea7ff' }}>Standard</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1ea7ff' }}>Standard</span>
                 </div>
                 <div className="strategy-inputs">
                   <InputField
@@ -924,7 +968,7 @@ const PlannerApp = () => {
               {/* Fuel-Saving - Green */}
               <div className="strategy-card strategy-fuel-saving">
                 <div style={{ marginBottom: 12 }}>
-                  <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: '#10b981' }}>Fuel-Saving</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>Fuel-Saving</span>
                 </div>
                 <div className="strategy-inputs">
                   <InputField
@@ -951,7 +995,7 @@ const PlannerApp = () => {
               {/* Extra Fuel-Saving - Purple */}
               <div className="strategy-card strategy-extra">
                 <div style={{ marginBottom: 12 }}>
-                  <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: '#a855f7' }}>Extra Fuel-Saving</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a855f7' }}>Extra Fuel-Saving</span>
                 </div>
                 <div className="strategy-inputs">
                   <InputField
@@ -982,13 +1026,10 @@ const PlannerApp = () => {
                 background: 'rgba(251, 191, 36, 0.08)',
                 borderRadius: 6,
                 border: '1px solid rgba(251, 191, 36, 0.15)',
-                fontSize: 'var(--font-xs)',
+                fontSize: '0.8rem',
                 color: 'var(--text-muted)',
               }}>
-                💡 Fine-tune lap times per stint in <strong 
-                  style={{ color: '#fbbf24', cursor: 'pointer', textDecoration: 'underline' }}
-                  onClick={() => setActiveTab('lap-times')}
-                >Stint Model</strong> tab.
+                💡 Fine-tune lap times per stint in <strong style={{ color: '#fbbf24' }}>Stint Model</strong> tab.
               </div>
             </div>
           </div>

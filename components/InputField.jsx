@@ -4,13 +4,20 @@ const InputField = ({
   type = 'text',
   value,
   onChange,
+  onBlur,
   placeholder,
   step = 'any',
   helpText,
   min,
   max,
 }) => {
-  const handleBlur = (e) => {
+  const handleBlurInternal = (e) => {
+    // Call custom onBlur if provided
+    if (onBlur) {
+      onBlur(e);
+    }
+    
+    // Also handle default behavior for number fields
     if (type === 'number' && (e.target.value === '' || isNaN(parseFloat(e.target.value)))) {
       // On blur, if empty or invalid, set to min value if provided
       if (min !== undefined) {
@@ -54,7 +61,7 @@ const InputField = ({
           type={type}
           value={value}
           onChange={onChange}
-          onBlur={handleBlur}
+          onBlur={handleBlurInternal}
           placeholder={placeholder}
           step={step}
           min={min}
