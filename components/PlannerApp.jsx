@@ -1480,6 +1480,73 @@ const PlannerApp = () => {
               </div>
             </div>
           </div>
+          
+          {/* Buttons at bottom */}
+          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 12, alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                setForm(defaultForm);
+                setValidation({ errors: [], warnings: [] });
+              }}
+              style={{
+                padding: '8px 16px',
+                background: 'var(--surface-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = 'var(--surface)';
+                e.target.style.color = 'var(--text)';
+                e.target.style.borderColor = 'var(--text-muted)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'var(--surface-muted)';
+                e.target.style.color = 'var(--text-muted)';
+                e.target.style.borderColor = 'var(--border)';
+              }}
+            >
+              Reset to Defaults
+            </button>
+            
+            <button
+              onClick={handleConfirmForm}
+              disabled={validation.errors.length > 0 || isCalculatingStrategy}
+              style={{
+                padding: '10px 20px',
+                background: validation.errors.length > 0
+                  ? 'var(--surface-muted)'
+                  : 'linear-gradient(135deg, #10b981, #059669)',
+                border: 'none',
+                borderRadius: 8,
+                color: validation.errors.length > 0 ? 'var(--text-muted)' : '#fff',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: validation.errors.length > 0 ? 'not-allowed' : 'pointer',
+                boxShadow: validation.errors.length > 0 ? 'none' : '0 2px 8px rgba(16, 185, 129, 0.2)',
+                transition: 'all 0.2s ease',
+                opacity: validation.errors.length > 0 ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (validation.errors.length === 0 && !isCalculatingStrategy) {
+                  e.target.style.transform = 'translateY(-1px)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (validation.errors.length === 0 && !isCalculatingStrategy) {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.2)';
+                }
+              }}
+            >
+              {validation.errors.length > 0 ? 'Fix Errors to Calculate' : 'Calculate Strategy'}
+            </button>
+          </div>
         </div>
       )}
 
