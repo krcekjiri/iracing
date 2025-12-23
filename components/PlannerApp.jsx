@@ -52,6 +52,7 @@ const PlannerApp = () => {
   const [confirmedForm, setConfirmedForm] = useState(() => defaultForm);
   const [showStrategyCalculated, setShowStrategyCalculated] = useState(false);
   const [isCalculatingStrategy, setIsCalculatingStrategy] = useState(false);
+  const [validation, setValidation] = useState({ errors: [], warnings: [] });
 
   // Validation function - returns { errors: [], warnings: [] }
   // Memoized with useCallback to prevent recreation on every render
@@ -804,6 +805,16 @@ const PlannerApp = () => {
 
   // Handle confirmation - copy draft form to confirmed form
   const handleConfirmForm = () => {
+    // Validate form first
+    const validationResult = validateForm(form);
+    setValidation(validationResult);
+    
+    // Block calculation if there are errors
+    if (validationResult.errors.length > 0) {
+      setIsCalculatingStrategy(false);
+      return; // Don't proceed with calculation
+    }
+    
     setIsCalculatingStrategy(true);
     
     // Sanitize form values before calculation to prevent expensive operations
@@ -969,66 +980,246 @@ const PlannerApp = () => {
 
               {/* 2-column Grid for all params */}
               <div className="param-grid">
-                <InputField
-                  label="Tank Capacity"
-                  type="number"
-                  suffix="L"
-                  value={form.tankCapacity}
-                  onChange={handleInput('tankCapacity')}
-                  onBlur={handleInputBlur('tankCapacity', 100)}
-                  min={10}
-                  max={200}
-                  step={1}
-                  helpText="Base fuel tank capacity before BoP adjustments."
-                />
-                <InputField
-                  label="Fuel BoP"
-                  type="number"
-                  suffix="%"
-                  value={form.fuelBoP}
-                  onChange={handleInput('fuelBoP')}
-                  onBlur={handleInputBlur('fuelBoP', 0)}
-                  min={0}
-                  max={10}
-                  step={0.25}
-                  helpText="Balance of Performance reduction to tank capacity."
-                />
-                <InputField
-                  label="Fuel Reserve"
-                  type="number"
-                  suffix="L"
-                  value={form.fuelReserveLiters}
-                  onChange={handleInput('fuelReserveLiters')}
-                  onBlur={handleInputBlur('fuelReserveLiters', 0)}
-                  min={0}
-                  max={2}
-                  step={0.1}
-                  helpText="Buffer to keep in tank at each stop."
-                />
-                <InputField
-                  label="Formation Lap Fuel"
-                  type="number"
-                  suffix="L"
-                  value={form.formationLapFuel}
-                  onChange={handleInput('formationLapFuel')}
-                  onBlur={handleInputBlur('formationLapFuel', 0)}
-                  min={0}
-                  max={5}
-                  step={0.1}
-                  helpText="Fuel consumed during formation lap."
-                />
-                <InputField
-                  label="Pit Lane Delta"
-                  type="number"
-                  suffix="sec"
-                  value={form.pitLaneDeltaSeconds}
-                  onChange={handleInput('pitLaneDeltaSeconds')}
-                  onBlur={handleInputBlur('pitLaneDeltaSeconds', 27)}
-                  min={10}
-                  max={60}
-                  step={0.1}
-                  helpText="Time lost driving through pit lane (entry to exit)."
-                />
+                <div>
+                  <InputField
+                    label="Tank Capacity"
+                    type="number"
+                    suffix="L"
+                    value={form.tankCapacity}
+                    onChange={handleInput('tankCapacity')}
+                    onBlur={handleInputBlur('tankCapacity', 100)}
+                    min={10}
+                    max={200}
+                    step={1}
+                    helpText="Base fuel tank capacity before BoP adjustments."
+                  />
+                  {getFieldValidation(validation, 'tankCapacity').error && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#ff6b81', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      {getFieldValidation(validation, 'tankCapacity').error.message}
+                    </div>
+                  )}
+                  {getFieldValidation(validation, 'tankCapacity').warning && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#fbbf24', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      {getFieldValidation(validation, 'tankCapacity').warning.message}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <InputField
+                    label="Fuel BoP"
+                    type="number"
+                    suffix="%"
+                    value={form.fuelBoP}
+                    onChange={handleInput('fuelBoP')}
+                    onBlur={handleInputBlur('fuelBoP', 0)}
+                    min={0}
+                    max={10}
+                    step={0.25}
+                    helpText="Balance of Performance reduction to tank capacity."
+                  />
+                  {getFieldValidation(validation, 'fuelBoP').error && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#ff6b81', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      {getFieldValidation(validation, 'fuelBoP').error.message}
+                    </div>
+                  )}
+                  {getFieldValidation(validation, 'fuelBoP').warning && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#fbbf24', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      {getFieldValidation(validation, 'fuelBoP').warning.message}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <InputField
+                    label="Fuel Reserve"
+                    type="number"
+                    suffix="L"
+                    value={form.fuelReserveLiters}
+                    onChange={handleInput('fuelReserveLiters')}
+                    onBlur={handleInputBlur('fuelReserveLiters', 0)}
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    helpText="Buffer to keep in tank at each stop."
+                  />
+                  {getFieldValidation(validation, 'fuelReserveLiters').error && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#ff6b81', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      {getFieldValidation(validation, 'fuelReserveLiters').error.message}
+                    </div>
+                  )}
+                  {getFieldValidation(validation, 'fuelReserveLiters').warning && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#fbbf24', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      {getFieldValidation(validation, 'fuelReserveLiters').warning.message}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <InputField
+                    label="Formation Lap Fuel"
+                    type="number"
+                    suffix="L"
+                    value={form.formationLapFuel}
+                    onChange={handleInput('formationLapFuel')}
+                    onBlur={handleInputBlur('formationLapFuel', 0)}
+                    min={0}
+                    max={5}
+                    step={0.1}
+                    helpText="Fuel consumed during formation lap."
+                  />
+                  {getFieldValidation(validation, 'formationLapFuel').error && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#ff6b81', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      {getFieldValidation(validation, 'formationLapFuel').error.message}
+                    </div>
+                  )}
+                  {getFieldValidation(validation, 'formationLapFuel').warning && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#fbbf24', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      {getFieldValidation(validation, 'formationLapFuel').warning.message}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <InputField
+                    label="Pit Lane Delta"
+                    type="number"
+                    suffix="sec"
+                    value={form.pitLaneDeltaSeconds}
+                    onChange={handleInput('pitLaneDeltaSeconds')}
+                    onBlur={handleInputBlur('pitLaneDeltaSeconds', 27)}
+                    min={10}
+                    max={60}
+                    step={0.1}
+                    helpText="Time lost driving through pit lane (entry to exit)."
+                  />
+                  {getFieldValidation(validation, 'pitLaneDeltaSeconds').error && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#ff6b81', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      {getFieldValidation(validation, 'pitLaneDeltaSeconds').error.message}
+                    </div>
+                  )}
+                  {getFieldValidation(validation, 'pitLaneDeltaSeconds').warning && (
+                    <div style={{ 
+                      fontSize: 'var(--font-xs)', 
+                      color: '#fbbf24', 
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      {getFieldValidation(validation, 'pitLaneDeltaSeconds').warning.message}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1069,24 +1260,62 @@ const PlannerApp = () => {
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>Fuel-Saving</span>
                 </div>
                 <div className="strategy-inputs">
-                  <InputField
-                    label="Lap Time"
-                    placeholder="MM:SS.sss"
-                    value={form.fuelSavingLapTime}
-                    onChange={handleInput('fuelSavingLapTime')}
-                    helpText="Slower lap time when fuel saving."
-                  />
-                  <InputField
-                    label="Fuel / Lap"
-                    type="number"
-                    suffix="L"
-                    value={form.fuelSavingFuelPerLap}
-                    onChange={handleInput('fuelSavingFuelPerLap')}
-                    min={0.1}
-                    max={10}
-                    step={0.01}
-                    helpText="Lower fuel consumption when saving."
-                  />
+                  <div>
+                    <InputField
+                      label="Lap Time"
+                      placeholder="MM:SS.sss"
+                      value={form.fuelSavingLapTime}
+                      onChange={handleInput('fuelSavingLapTime')}
+                      helpText="Slower lap time when fuel saving."
+                    />
+                    {getFieldValidation(validation, 'fuelSavingLapTime').warning && (
+                      <div style={{ 
+                        fontSize: 'var(--font-xs)', 
+                        color: '#fbbf24', 
+                        marginTop: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                          <line x1="12" y1="9" x2="12" y2="13" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        {getFieldValidation(validation, 'fuelSavingLapTime').warning.message}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <InputField
+                      label="Fuel / Lap"
+                      type="number"
+                      suffix="L"
+                      value={form.fuelSavingFuelPerLap}
+                      onChange={handleInput('fuelSavingFuelPerLap')}
+                      min={0.1}
+                      max={10}
+                      step={0.01}
+                      helpText="Lower fuel consumption when saving."
+                    />
+                    {getFieldValidation(validation, 'fuelSavingFuelPerLap').warning && (
+                      <div style={{ 
+                        fontSize: 'var(--font-xs)', 
+                        color: '#fbbf24', 
+                        marginTop: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                          <line x1="12" y1="9" x2="12" y2="13" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        {getFieldValidation(validation, 'fuelSavingFuelPerLap').warning.message}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1096,24 +1325,62 @@ const PlannerApp = () => {
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a855f7' }}>Extra Fuel-Saving</span>
                 </div>
                 <div className="strategy-inputs">
-                  <InputField
-                    label="Lap Time"
-                    placeholder="MM:SS.sss"
-                    value={form.extraFuelSavingLapTime}
-                    onChange={handleInput('extraFuelSavingLapTime')}
-                    helpText="Slowest lap time for maximum efficiency."
-                  />
-                  <InputField
-                    label="Fuel / Lap"
-                    type="number"
-                    suffix="L"
-                    value={form.extraFuelSavingFuelPerLap}
-                    onChange={handleInput('extraFuelSavingFuelPerLap')}
-                    min={0.1}
-                    max={10}
-                    step={0.01}
-                    helpText="Lowest fuel consumption for max range."
-                  />
+                  <div>
+                    <InputField
+                      label="Lap Time"
+                      placeholder="MM:SS.sss"
+                      value={form.extraFuelSavingLapTime}
+                      onChange={handleInput('extraFuelSavingLapTime')}
+                      helpText="Slowest lap time for maximum efficiency."
+                    />
+                    {getFieldValidation(validation, 'extraFuelSavingLapTime').warning && (
+                      <div style={{ 
+                        fontSize: 'var(--font-xs)', 
+                        color: '#fbbf24', 
+                        marginTop: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                          <line x1="12" y1="9" x2="12" y2="13" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        {getFieldValidation(validation, 'extraFuelSavingLapTime').warning.message}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <InputField
+                      label="Fuel / Lap"
+                      type="number"
+                      suffix="L"
+                      value={form.extraFuelSavingFuelPerLap}
+                      onChange={handleInput('extraFuelSavingFuelPerLap')}
+                      min={0.1}
+                      max={10}
+                      step={0.01}
+                      helpText="Lowest fuel consumption for max range."
+                    />
+                    {getFieldValidation(validation, 'extraFuelSavingFuelPerLap').warning && (
+                      <div style={{ 
+                        fontSize: 'var(--font-xs)', 
+                        color: '#fbbf24', 
+                        marginTop: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                          <line x1="12" y1="9" x2="12" y2="13" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        {getFieldValidation(validation, 'extraFuelSavingFuelPerLap').warning.message}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
