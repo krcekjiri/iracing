@@ -918,31 +918,106 @@ const PlannerApp = () => {
 
       {activeTab === 'setup' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', flexDirection: 'column', gap: 12, alignItems: 'flex-end' }}>
+            {/* Validation Messages */}
+            {(validation.errors.length > 0 || validation.warnings.length > 0) && (
+              <div style={{ 
+                width: '100%', 
+                maxWidth: '600px',
+                padding: '12px 16px',
+                borderRadius: 8,
+                background: validation.errors.length > 0 
+                  ? 'rgba(255, 107, 129, 0.1)' 
+                  : 'rgba(251, 191, 36, 0.1)',
+                border: `1px solid ${validation.errors.length > 0 
+                  ? 'rgba(255, 107, 129, 0.3)' 
+                  : 'rgba(251, 191, 36, 0.3)'}`,
+              }}>
+                {validation.errors.length > 0 && (
+                  <div style={{ marginBottom: validation.warnings.length > 0 ? 12 : 0 }}>
+                    <div style={{ 
+                      fontSize: 'var(--font-sm)', 
+                      fontWeight: 600, 
+                      color: '#ff6b81',
+                      marginBottom: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      Errors ({validation.errors.length})
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 20, color: '#ff6b81', fontSize: 'var(--font-sm)' }}>
+                      {validation.errors.map((error, idx) => (
+                        <li key={idx}>{error.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {validation.warnings.length > 0 && (
+                  <div>
+                    <div style={{ 
+                      fontSize: 'var(--font-sm)', 
+                      fontWeight: 600, 
+                      color: '#fbbf24',
+                      marginBottom: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      Warnings ({validation.warnings.length})
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 20, color: '#fbbf24', fontSize: 'var(--font-sm)' }}>
+                      {validation.warnings.map((warning, idx) => (
+                        <li key={idx}>{warning.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <button
               onClick={handleConfirmForm}
+              disabled={validation.errors.length > 0 || isCalculatingStrategy}
               style={{
                 padding: '10px 20px',
-                background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
+                background: validation.errors.length > 0
+                  ? 'var(--surface-muted)'
+                  : 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
                 border: 'none',
                 borderRadius: 8,
-                color: '#fff',
+                color: validation.errors.length > 0 ? 'var(--text-muted)' : '#fff',
                 fontSize: '0.9rem',
                 fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(251, 191, 36, 0.3)',
-                transition: 'all 0.2s ease'
+                cursor: validation.errors.length > 0 ? 'not-allowed' : 'pointer',
+                boxShadow: validation.errors.length > 0 ? 'none' : '0 4px 12px rgba(251, 191, 36, 0.3)',
+                transition: 'all 0.2s ease',
+                opacity: validation.errors.length > 0 ? 0.6 : 1,
               }}
               onMouseEnter={(e) => {
-                e.target.style.transform = 'translateY(-1px)';
-                e.target.style.boxShadow = '0 6px 16px rgba(251, 191, 36, 0.4)';
+                if (validation.errors.length === 0 && !isCalculatingStrategy) {
+                  e.target.style.transform = 'translateY(-1px)';
+                  e.target.style.boxShadow = '0 6px 16px rgba(251, 191, 36, 0.4)';
+                }
               }}
               onMouseLeave={(e) => {
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.3)';
+                if (validation.errors.length === 0 && !isCalculatingStrategy) {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.3)';
+                }
               }}
             >
-              Calculate Strategy
+              {validation.errors.length > 0 ? 'Fix Errors to Calculate' : 'Calculate Strategy'}
             </button>
           </div>
           
