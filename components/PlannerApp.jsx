@@ -143,9 +143,9 @@ const PlannerApp = () => {
       warnings.push({ field: 'fuelBoP', message: `${fuelBoP}% BoP is unusually high - verify series rules` });
     }
     
-    // Fuel reserve warnings
-    if (fuelReserve > 2 && fuelReserve < effectiveTank) {
-      warnings.push({ field: 'fuelReserveLiters', message: `${fuelReserve}L reserve is quite high - typical is 0.3-0.5L` });
+    // Fuel reserve warnings - check if reserve is high relative to effective tank
+    if (fuelReserve > 2 && effectiveTank > 0 && fuelReserve < effectiveTank) {
+      warnings.push({ field: 'fuelReserveLiters', message: `${fuelReserve}L reserve is quite high` });
     }
     
     // Formation lap fuel warnings
@@ -1013,27 +1013,27 @@ const PlannerApp = () => {
                 padding: '10px 20px',
                 background: validation.errors.length > 0
                   ? 'var(--surface-muted)'
-                  : 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
+                  : 'linear-gradient(135deg, #10b981, #059669)',
                 border: 'none',
                 borderRadius: 8,
                 color: validation.errors.length > 0 ? 'var(--text-muted)' : '#fff',
                 fontSize: '0.9rem',
                 fontWeight: 600,
                 cursor: validation.errors.length > 0 ? 'not-allowed' : 'pointer',
-                boxShadow: validation.errors.length > 0 ? 'none' : '0 4px 12px rgba(251, 191, 36, 0.3)',
+                boxShadow: validation.errors.length > 0 ? 'none' : '0 2px 8px rgba(16, 185, 129, 0.2)',
                 transition: 'all 0.2s ease',
                 opacity: validation.errors.length > 0 ? 0.6 : 1,
               }}
               onMouseEnter={(e) => {
                 if (validation.errors.length === 0 && !isCalculatingStrategy) {
                   e.target.style.transform = 'translateY(-1px)';
-                  e.target.style.boxShadow = '0 6px 16px rgba(251, 191, 36, 0.4)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (validation.errors.length === 0 && !isCalculatingStrategy) {
                   e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.3)';
+                  e.target.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.2)';
                 }
               }}
             >
