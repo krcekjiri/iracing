@@ -983,7 +983,7 @@ const PlannerApp = () => {
                         border: '1px solid rgba(255, 255, 255, 0.08)',
                         background: 'var(--surface-muted)',
                         color: '#f4f6fb',
-                        fontSize: 'var(--font-base)',
+                        fontSize: '0.95rem',
                         transition: 'border 0.2s ease, box-shadow 0.2s ease'
                       }}
                     />
