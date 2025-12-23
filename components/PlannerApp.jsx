@@ -121,9 +121,9 @@ const PlannerApp = () => {
     if (raceDuration <= 0) {
       errors.push({ field: 'raceDurationMinutes', message: 'Race duration must be greater than 0' });
     }
-    // Warning if race duration > 1440 minutes (24 hours)
+    // Hard error if race duration > 1440 minutes (24 hours)
     if (raceDuration > 1440) {
-      warnings.push({ field: 'raceDurationMinutes', message: `Race duration (${(raceDuration / 60).toFixed(1)}h) exceeds 24 hours - verify schedule` });
+      errors.push({ field: 'raceDurationMinutes', message: `Race duration (${(raceDuration / 60).toFixed(1)}h) exceeds 24 hours maximum - please reduce` });
     }
     
     // Pit lane delta
@@ -951,74 +951,6 @@ const PlannerApp = () => {
             </p>
           </div>
           
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', flexDirection: 'column', gap: 12, alignItems: 'stretch' }}>
-            {/* Validation Messages */}
-            {(validation.errors.length > 0 || validation.warnings.length > 0) && (
-              <div style={{ 
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: 8,
-                background: validation.errors.length > 0 
-                  ? 'rgba(255, 107, 129, 0.1)' 
-                  : 'rgba(251, 191, 36, 0.1)',
-                border: `1px solid ${validation.errors.length > 0 
-                  ? 'rgba(255, 107, 129, 0.3)' 
-                  : 'rgba(251, 191, 36, 0.3)'}`,
-              }}>
-                {validation.errors.length > 0 && (
-                  <div style={{ marginBottom: validation.warnings.length > 0 ? 12 : 0 }}>
-                    <div style={{ 
-                      fontSize: 'var(--font-sm)', 
-                      fontWeight: 600, 
-                      color: '#ff6b81',
-                      marginBottom: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                      Errors ({validation.errors.length})
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: 20, color: '#ff6b81', fontSize: 'var(--font-sm)' }}>
-                      {validation.errors.map((error, idx) => (
-                        <li key={idx}>{error.message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {validation.warnings.length > 0 && (
-                  <div>
-                    <div style={{ 
-                      fontSize: 'var(--font-sm)', 
-                      fontWeight: 600, 
-                      color: '#fbbf24',
-                      marginBottom: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                        <line x1="12" y1="9" x2="12" y2="13" />
-                        <line x1="12" y1="17" x2="12.01" y2="17" />
-                      </svg>
-                      Warnings ({validation.warnings.length})
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: 20, color: '#fbbf24', fontSize: 'var(--font-sm)' }}>
-                      {validation.warnings.map((warning, idx) => (
-                        <li key={idx}>{warning.message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          
           <div className="inputs-grid">
             {/* Race & Fuel Parameters */}
             <div className="card">
@@ -1036,16 +968,19 @@ const PlannerApp = () => {
                 
                 {/* Input + Presets inline */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input
-                    type="number"
-                    value={form.raceDurationMinutes}
-                    onChange={handleInput('raceDurationMinutes')}
-                    onBlur={handleInputBlur('raceDurationMinutes', 60)}
-                    min={10}
-                    step={10}
-                    className="input-field"
-                  />
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>min</span>
+                  <div style={{ position: 'relative', width: '120px' }}>
+                    <input
+                      type="number"
+                      value={form.raceDurationMinutes}
+                      onChange={handleInput('raceDurationMinutes')}
+                      onBlur={handleInputBlur('raceDurationMinutes', 60)}
+                      min={10}
+                      step={10}
+                      className="input-field"
+                      style={{ width: '100%', fontSize: 'var(--font-base)', padding: '12px 14px' }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)' }}>min</span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {racePresets.map(preset => (
                       <button
@@ -1480,6 +1415,73 @@ const PlannerApp = () => {
               </div>
             </div>
           </div>
+          
+          {/* Validation Messages - between inputs and buttons */}
+          {(validation.errors.length > 0 || validation.warnings.length > 0) && (
+            <div style={{ 
+              width: '100%',
+              padding: '12px 16px',
+              borderRadius: 8,
+              background: validation.errors.length > 0 
+                ? 'rgba(255, 107, 129, 0.1)' 
+                : 'rgba(251, 191, 36, 0.1)',
+              border: `1px solid ${validation.errors.length > 0 
+                ? 'rgba(255, 107, 129, 0.3)' 
+                : 'rgba(251, 191, 36, 0.3)'}`,
+              marginTop: 24,
+            }}>
+              {validation.errors.length > 0 && (
+                <div style={{ marginBottom: validation.warnings.length > 0 ? 12 : 0 }}>
+                  <div style={{ 
+                    fontSize: 'var(--font-sm)', 
+                    fontWeight: 600, 
+                    color: '#ff6b81',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    Errors ({validation.errors.length})
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 20, color: '#ff6b81', fontSize: 'var(--font-sm)' }}>
+                    {validation.errors.map((error, idx) => (
+                      <li key={idx}>{error.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {validation.warnings.length > 0 && (
+                <div>
+                  <div style={{ 
+                    fontSize: 'var(--font-sm)', 
+                    fontWeight: 600, 
+                    color: '#fbbf24',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    Warnings ({validation.warnings.length})
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 20, color: '#fbbf24', fontSize: 'var(--font-sm)' }}>
+                    {validation.warnings.map((warning, idx) => (
+                      <li key={idx}>{warning.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           
           {/* Buttons at bottom */}
           <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 12, alignItems: 'center' }}>
