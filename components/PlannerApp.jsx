@@ -976,8 +976,16 @@ const PlannerApp = () => {
                       onBlur={handleInputBlur('raceDurationMinutes', 60)}
                       min={10}
                       step={10}
-                      className="input-field"
-                      style={{ width: '100%', fontSize: 'var(--font-base)', padding: '12px 14px' }}
+                      style={{ 
+                        width: '100%',
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        background: 'var(--surface-muted)',
+                        color: '#f4f6fb',
+                        fontSize: 'var(--font-base)',
+                        transition: 'border 0.2s ease, box-shadow 0.2s ease'
+                      }}
                     />
                   </div>
                   <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)' }}>min</span>
