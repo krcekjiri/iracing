@@ -99,15 +99,31 @@ const PlannerApp = () => {
       errors.push({ field: 'fuelPerLap', message: `Fuel/lap (${fuelPerLap}L) exceeds effective tank (${effectiveTank.toFixed(1)}L)` });
     }
     
-    // Lap time validation
-    const lapTimeSeconds = parseLapTime(form.averageLapTime);
-    if (!lapTimeSeconds || lapTimeSeconds <= 0) {
-      errors.push({ field: 'averageLapTime', message: 'Invalid lap time format (use MM:SS.sss)' });
+    // Lap time validation - must be mm:ss.000 or m:ss.000 format
+    const lapTimeStr = String(form.averageLapTime || '').trim();
+    const lapTimePattern = /^(\d{1,2}):(\d{2})\.(\d{3})$/;
+    let lapTimeSeconds = 0;
+    
+    if (!lapTimeStr || !lapTimePattern.test(lapTimeStr)) {
+      errors.push({ field: 'averageLapTime', message: 'Invalid lap time format (use mm:ss.000 or m:ss.000)' });
+    } else {
+      lapTimeSeconds = parseLapTime(form.averageLapTime);
+      if (!lapTimeSeconds || lapTimeSeconds <= 0) {
+        errors.push({ field: 'averageLapTime', message: 'Invalid lap time format (use mm:ss.000 or m:ss.000)' });
+      }
+      // Warning if lap time > 15 minutes (900 seconds)
+      if (lapTimeSeconds > 900) {
+        warnings.push({ field: 'averageLapTime', message: `Lap time (${(lapTimeSeconds / 60).toFixed(1)}min) is unusually long - verify measurement` });
+      }
     }
     
     // Race duration
     if (raceDuration <= 0) {
       errors.push({ field: 'raceDurationMinutes', message: 'Race duration must be greater than 0' });
+    }
+    // Warning if race duration > 1440 minutes (24 hours)
+    if (raceDuration > 1440) {
+      warnings.push({ field: 'raceDurationMinutes', message: `Race duration (${(raceDuration / 60).toFixed(1)}h) exceeds 24 hours - verify schedule` });
     }
     
     // Pit lane delta
@@ -116,6 +132,11 @@ const PlannerApp = () => {
     }
     
     // === SOFT WARNINGS ===
+    
+    // Tank capacity warning
+    if (tankCapacity > 120) {
+      warnings.push({ field: 'tankCapacity', message: `Tank capacity (${tankCapacity}L) is unusually large - verify series rules` });
+    }
     
     // Fuel BoP warnings
     if (fuelBoP > 5 && fuelBoP < 100) {
@@ -136,7 +157,7 @@ const PlannerApp = () => {
     if (pitLaneDelta > 0 && pitLaneDelta < 15) {
       warnings.push({ field: 'pitLaneDeltaSeconds', message: `${pitLaneDelta}s is very short - verify measurement` });
     }
-    if (pitLaneDelta > 45) {
+    if (pitLaneDelta > 60) {
       warnings.push({ field: 'pitLaneDeltaSeconds', message: `${pitLaneDelta}s is unusually long - verify measurement` });
     }
     
@@ -918,12 +939,11 @@ const PlannerApp = () => {
 
       {activeTab === 'setup' && (
         <div className="tab-content">
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', flexDirection: 'column', gap: 12, alignItems: 'flex-end' }}>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', flexDirection: 'column', gap: 12, alignItems: 'stretch' }}>
             {/* Validation Messages */}
             {(validation.errors.length > 0 || validation.warnings.length > 0) && (
               <div style={{ 
-                width: '100%', 
-                maxWidth: '600px',
+                width: '100%',
                 padding: '12px 16px',
                 borderRadius: 8,
                 background: validation.errors.length > 0 
