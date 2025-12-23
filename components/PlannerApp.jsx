@@ -939,6 +939,18 @@ const PlannerApp = () => {
 
       {activeTab === 'setup' && (
         <div className="tab-content">
+          {/* Description */}
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v6m0 6v6M1 12h6m6 0h6" />
+              <path d="M19.07 4.93l-4.24 4.24M4.93 19.07l4.24-4.24M19.07 19.07l-4.24-4.24M4.93 4.93l4.24 4.24" />
+            </svg>
+            <p style={{ margin: 0, fontSize: 'var(--font-sm)', color: 'var(--text-muted)', flex: 1 }}>
+              Configure race parameters and strategy modes. Click <strong style={{ color: 'var(--accent)' }}>Calculate Strategy</strong> to generate your race plan.
+            </p>
+          </div>
+          
           <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', flexDirection: 'column', gap: 12, alignItems: 'stretch' }}>
             {/* Validation Messages */}
             {(validation.errors.length > 0 || validation.warnings.length > 0) && (
@@ -1005,71 +1017,6 @@ const PlannerApp = () => {
                 )}
               </div>
             )}
-            
-            <button
-              onClick={handleConfirmForm}
-              disabled={validation.errors.length > 0 || isCalculatingStrategy}
-              style={{
-                padding: '10px 20px',
-                background: validation.errors.length > 0
-                  ? 'var(--surface-muted)'
-                  : 'linear-gradient(135deg, #10b981, #059669)',
-                border: 'none',
-                borderRadius: 8,
-                color: validation.errors.length > 0 ? 'var(--text-muted)' : '#fff',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                cursor: validation.errors.length > 0 ? 'not-allowed' : 'pointer',
-                boxShadow: validation.errors.length > 0 ? 'none' : '0 2px 8px rgba(16, 185, 129, 0.2)',
-                transition: 'all 0.2s ease',
-                opacity: validation.errors.length > 0 ? 0.6 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (validation.errors.length === 0 && !isCalculatingStrategy) {
-                  e.target.style.transform = 'translateY(-1px)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (validation.errors.length === 0 && !isCalculatingStrategy) {
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.2)';
-                }
-              }}
-            >
-              {validation.errors.length > 0 ? 'Fix Errors to Calculate' : 'Calculate Strategy'}
-            </button>
-            
-            {/* Reset Button */}
-            <button
-              onClick={() => {
-                setForm(defaultForm);
-                setValidation({ errors: [], warnings: [] });
-              }}
-              style={{
-                padding: '8px 16px',
-                background: 'var(--surface-muted)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                color: 'var(--text-muted)',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = 'var(--surface)';
-                e.target.style.color = 'var(--text)';
-                e.target.style.borderColor = 'var(--text-muted)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'var(--surface-muted)';
-                e.target.style.color = 'var(--text-muted)';
-                e.target.style.borderColor = 'var(--border)';
-              }}
-            >
-              Reset to Defaults
-            </button>
           </div>
           
           <div className="inputs-grid">
@@ -1097,7 +1044,6 @@ const PlannerApp = () => {
                     min={10}
                     step={10}
                     className="input-field"
-                    style={{ width: '100%', maxWidth: '120px' }}
                   />
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>min</span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
