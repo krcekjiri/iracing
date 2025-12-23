@@ -1039,6 +1039,37 @@ const PlannerApp = () => {
             >
               {validation.errors.length > 0 ? 'Fix Errors to Calculate' : 'Calculate Strategy'}
             </button>
+            
+            {/* Reset Button */}
+            <button
+              onClick={() => {
+                setForm(defaultForm);
+                setValidation({ errors: [], warnings: [] });
+              }}
+              style={{
+                padding: '8px 16px',
+                background: 'var(--surface-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = 'var(--surface)';
+                e.target.style.color = 'var(--text)';
+                e.target.style.borderColor = 'var(--text-muted)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'var(--surface-muted)';
+                e.target.style.color = 'var(--text-muted)';
+                e.target.style.borderColor = 'var(--border)';
+              }}
+            >
+              Reset to Defaults
+            </button>
           </div>
           
           <div className="inputs-grid">
@@ -1066,7 +1097,7 @@ const PlannerApp = () => {
                     min={10}
                     step={10}
                     className="input-field"
-                    style={{ width: 80 }}
+                    style={{ width: '100%', maxWidth: '120px' }}
                   />
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>min</span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -2826,12 +2857,13 @@ const PlannerApp = () => {
         <div className="tab-content">
           <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: 8, border: '1px solid rgba(251, 191, 36, 0.2)', display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-              <path d="M3 2v20h18V2z" />
-              <path d="M7 6h10" />
-              <path d="M7 10h10" />
-              <path d="M7 14h10" />
-              <path d="M7 18h10" />
-              <circle cx="12" cy="12" r="2" />
+              <path d="M18 20V10a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v10" />
+              <path d="M12 22v-4" />
+              <path d="M12 6V2" />
+              <path d="M10 4h4" />
+              <path d="M14 10h-4" />
+              <path d="M14 14h-4" />
+              <path d="M14 18h-4" />
             </svg>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Calculate target fuel consumption per lap to achieve your target laps. View sensitivity analysis showing how fuel consumption variations affect possible lap counts.

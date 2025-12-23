@@ -30,6 +30,7 @@ const InputField = ({
           onChange(syntheticEvent);
         }
       }
+    }
     // Tank Capacity: removed clamping - allow any value, validation will show error if out of bounds
   };
 
