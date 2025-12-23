@@ -29,7 +29,8 @@ const PlannerApp = () => {
   const [isCalculatingStrategy, setIsCalculatingStrategy] = useState(false);
 
   // Validation function - returns { errors: [], warnings: [] }
-  const validateForm = (form) => {
+  // Memoized with useCallback to prevent recreation on every render
+  const validateForm = useCallback((form) => {
     const errors = []; // Hard stops - block calculation
     const warnings = []; // Soft warnings - allow but warn
     
@@ -145,14 +146,14 @@ const PlannerApp = () => {
     }
     
     return { errors, warnings };
-  };
+  }, []); // Empty deps - function doesn't depend on component state
 
   // Helper to get field-specific validation state
-  const getFieldValidation = (validation, fieldName) => {
+  const getFieldValidation = useCallback((validation, fieldName) => {
     const error = validation.errors.find(e => e.field === fieldName);
     const warning = validation.warnings.find(w => w.field === fieldName);
     return { error, warning };
-  };
+  }, []); // Empty deps - pure function
 
   // Race duration presets
   const racePresets = [
@@ -201,9 +202,13 @@ const PlannerApp = () => {
   const [stintEndInputModes, setStintEndInputModes] = useState({}); // 'manual' or 'log' per stint
   const [stintReplayTimestamps, setStintReplayTimestamps] = useState({}); // Store replay timestamp input per stint
   
-  // Save to localStorage whenever state changes
+  // Save to localStorage whenever state changes (debounced to prevent performance issues)
   useEffect(() => {
-    saveToStorage('form', form);
+    const timeoutId = setTimeout(() => {
+      saveToStorage('form', form);
+    }, 300); // Debounce by 300ms
+    
+    return () => clearTimeout(timeoutId);
   }, [form]);
   
   useEffect(() => {
@@ -503,20 +508,49 @@ const PlannerApp = () => {
       ? result.lapsPerStint * (result.fuelPerLap || 0) + reservePerStint
       : 0;
 
-  // CRITICAL: Allow empty strings and partial numbers during typing
-  // Don't convert to number immediately - store as string for number fields
+  // Handle input with proper type conversion for number fields
   const handleInput = (field) => (eventOrValue) => {
     let value;
+    let fieldType = 'text';
+    
     if (typeof eventOrValue === 'number') {
       value = eventOrValue;
+      fieldType = 'number';
     } else {
       value = eventOrValue.target.value;
+      fieldType = eventOrValue.target.type || 'text';
     }
     
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    // For number fields, try to parse immediately but allow empty strings
+    if (fieldType === 'number') {
+      // Allow empty string for typing, but convert valid numbers
+      if (value === '' || value === null || value === undefined) {
+        setForm((prev) => ({
+          ...prev,
+          [field]: '',
+        }));
+      } else {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          setForm((prev) => ({
+            ...prev,
+            [field]: numValue,
+          }));
+        } else {
+          // Invalid number - keep as string for now, will be cleaned on blur
+          setForm((prev) => ({
+            ...prev,
+            [field]: value,
+          }));
+        }
+      }
+    } else {
+      // For text fields (like lap time), store as-is
+      setForm((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    }
   };
 
   // Add onBlur handler for number fields to clean up values

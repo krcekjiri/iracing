@@ -1,4 +1,4 @@
-const { useState, useMemo, useRef, useEffect } = React;
+const { useState, useMemo, useRef, useEffect, useCallback } = React;
 
 // Entry point - all code has been split into modules
 // Load order is managed by index.html
