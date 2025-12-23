@@ -276,6 +276,16 @@ const PlannerApp = () => {
   useEffect(() => {
     saveToStorage('stintModelling', stintModelling);
   }, [stintModelling]);
+
+  // Real-time validation (debounced to avoid excessive re-validation)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const validationResult = validateForm(form);
+      setValidation(validationResult);
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [form, validateForm]);
   const [activeTab, setActiveTab] = useState('setup');
   const [selectedStrategy, setSelectedStrategy] = useState('standard');
   const [pitSandbox, setPitSandbox] = useState(() => {
