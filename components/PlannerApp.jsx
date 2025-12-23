@@ -23,8 +23,33 @@ const PlannerApp = () => {
     }
   };
   
-  const [form, setForm] = useState(() => loadFromStorage('form', defaultForm));
-  const [confirmedForm, setConfirmedForm] = useState(() => loadFromStorage('form', defaultForm)); // Form used for calculations
+  // Always start with safe defaults on initial load to prevent expensive calculations
+  const getSafeDefaults = () => {
+    const stored = loadFromStorage('form', defaultForm);
+    // Validate and sanitize stored values to prevent expensive calculations
+    const safeForm = {
+      ...defaultForm,
+      ...stored,
+      // Ensure race duration is reasonable (max 24h = 1440 minutes)
+      raceDurationMinutes: Math.min(Math.max(Number(stored.raceDurationMinutes) || defaultForm.raceDurationMinutes, 60), 1440),
+      // Ensure tank capacity is reasonable
+      tankCapacity: Math.min(Math.max(Number(stored.tankCapacity) || defaultForm.tankCapacity, 10), 200),
+      // Ensure fuel per lap is reasonable
+      fuelPerLap: Math.min(Math.max(Number(stored.fuelPerLap) || defaultForm.fuelPerLap, 0.1), 10),
+      fuelSavingFuelPerLap: Math.min(Math.max(Number(stored.fuelSavingFuelPerLap) || defaultForm.fuelSavingFuelPerLap, 0.1), 10),
+      extraFuelSavingFuelPerLap: Math.min(Math.max(Number(stored.extraFuelSavingFuelPerLap) || defaultForm.extraFuelSavingFuelPerLap, 0.1), 10),
+      // Ensure other numeric fields are valid
+      fuelBoP: Math.min(Math.max(Number(stored.fuelBoP) || defaultForm.fuelBoP, 0), 10),
+      fuelReserveLiters: Math.min(Math.max(Number(stored.fuelReserveLiters) || defaultForm.fuelReserveLiters, 0), 5),
+      formationLapFuel: Math.min(Math.max(Number(stored.formationLapFuel) || defaultForm.formationLapFuel, 0), 5),
+      pitLaneDeltaSeconds: Math.min(Math.max(Number(stored.pitLaneDeltaSeconds) || defaultForm.pitLaneDeltaSeconds, 10), 60),
+    };
+    return safeForm;
+  };
+
+  const [form, setForm] = useState(() => getSafeDefaults());
+  // Start confirmedForm with safe defaults, not from localStorage, to prevent expensive initial calculations
+  const [confirmedForm, setConfirmedForm] = useState(() => defaultForm);
   const [showStrategyCalculated, setShowStrategyCalculated] = useState(false);
   const [isCalculatingStrategy, setIsCalculatingStrategy] = useState(false);
 
@@ -265,6 +290,16 @@ const PlannerApp = () => {
   });
 
   const standardResult = useMemo(() => {
+    // Guard: Skip expensive calculation if form data is invalid or extreme
+    const raceDuration = Number(confirmedForm.raceDurationMinutes) || 0;
+    const tankCapacity = Number(confirmedForm.tankCapacity) || 0;
+    const fuelPerLap = Number(confirmedForm.fuelPerLap) || 0;
+    
+    // Prevent calculations with invalid or extreme values that would freeze the browser
+    if (raceDuration <= 0 || raceDuration > 1440 || tankCapacity <= 0 || fuelPerLap <= 0) {
+      return { errors: ['Invalid form data'], stintPlan: [], totalLaps: 0 };
+    }
+    
     // #region agent log
     try {
       fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:103',message:'standardResult useMemo entry',data:{tankCapacity:confirmedForm.tankCapacity,tankCapacityType:typeof confirmedForm.tankCapacity,tankCapacityNum:Number(confirmedForm.tankCapacity)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -291,6 +326,16 @@ const PlannerApp = () => {
     }
   }, [confirmedForm]);
   const fuelSavingResult = useMemo(() => {
+    // Guard: Skip expensive calculation if form data is invalid or extreme
+    const raceDuration = Number(confirmedForm.raceDurationMinutes) || 0;
+    const tankCapacity = Number(confirmedForm.tankCapacity) || 0;
+    const fuelPerLap = Number(confirmedForm.fuelSavingFuelPerLap) || Number(confirmedForm.fuelPerLap) || 0;
+    
+    // Prevent calculations with invalid or extreme values that would freeze the browser
+    if (raceDuration <= 0 || raceDuration > 1440 || tankCapacity <= 0 || fuelPerLap <= 0) {
+      return { errors: ['Invalid form data'], stintPlan: [], totalLaps: 0 };
+    }
+    
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/294e85c6-299a-4f71-bd1a-c270e27a767a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlannerApp.jsx:116',message:'fuelSavingResult useMemo entry',data:{tankCapacity:confirmedForm.tankCapacity},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
     // #endregion
@@ -760,13 +805,32 @@ const PlannerApp = () => {
   // Handle confirmation - copy draft form to confirmed form
   const handleConfirmForm = () => {
     setIsCalculatingStrategy(true);
+    
+    // Sanitize form values before calculation to prevent expensive operations
+    const sanitizedForm = {
+      ...form,
+      // Ensure race duration is reasonable (max 24h = 1440 minutes)
+      raceDurationMinutes: Math.min(Math.max(Number(form.raceDurationMinutes) || defaultForm.raceDurationMinutes, 60), 1440),
+      // Ensure tank capacity is reasonable
+      tankCapacity: Math.min(Math.max(Number(form.tankCapacity) || defaultForm.tankCapacity, 10), 200),
+      // Ensure fuel per lap is reasonable
+      fuelPerLap: Math.min(Math.max(Number(form.fuelPerLap) || defaultForm.fuelPerLap, 0.1), 10),
+      fuelSavingFuelPerLap: Math.min(Math.max(Number(form.fuelSavingFuelPerLap) || defaultForm.fuelSavingFuelPerLap, 0.1), 10),
+      extraFuelSavingFuelPerLap: Math.min(Math.max(Number(form.extraFuelSavingFuelPerLap) || defaultForm.extraFuelSavingFuelPerLap, 0.1), 10),
+      // Ensure other numeric fields are valid
+      fuelBoP: Math.min(Math.max(Number(form.fuelBoP) || defaultForm.fuelBoP, 0), 10),
+      fuelReserveLiters: Math.min(Math.max(Number(form.fuelReserveLiters) || defaultForm.fuelReserveLiters, 0), 5),
+      formationLapFuel: Math.min(Math.max(Number(form.formationLapFuel) || defaultForm.formationLapFuel, 0), 5),
+      pitLaneDeltaSeconds: Math.min(Math.max(Number(form.pitLaneDeltaSeconds) || defaultForm.pitLaneDeltaSeconds, 10), 60),
+    };
+    
     // Use requestAnimationFrame to allow UI to update before heavy calculation
     requestAnimationFrame(() => {
       // Small delay to ensure loading state is visible
       setTimeout(() => {
-        // Update confirmed form which triggers useMemo calculations
-        setConfirmedForm({ ...form });
-        saveToStorage('form', form);
+        // Update confirmed form which triggers useMemo calculations (with sanitized values)
+        setConfirmedForm(sanitizedForm);
+        saveToStorage('form', sanitizedForm);
         // Use another setTimeout to allow calculations to complete
         setTimeout(() => {
           setIsCalculatingStrategy(false);
