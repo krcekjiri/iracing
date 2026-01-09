@@ -372,17 +372,11 @@ const StrategyTab = ({
                       minHeight: '200px',
                       textAlign: 'center',
                       color: 'var(--text-muted)',
-                      fontSize: 'var(--font-base)',
+                      fontSize: 'var(--font-lg)',
                       padding: '20px',
-                      gap: '12px',
                     }}>
-                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', opacity: 0.8 }}>
-                        <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                        <path d="M2 17l10 5 10-5" />
-                        <path d="M2 12l10 5 10-5" />
-                      </svg>
                       <div>
-                        No fuel-saving strategy needed. {randomQuote} 🏎️
+                        "{randomQuote}"
                       </div>
                     </div>
                   ) : cardResult.errors?.length ? (
