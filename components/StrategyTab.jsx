@@ -8,6 +8,22 @@ const StrategyTab = ({
   strategyRecommendation,
   reservePerStint,
 }) => {
+  // Racing quotes for when no fuel-saving strategy is needed
+  const racingQuotes = [
+    "Leave me alone, I know what I'm doing",
+    "We will come back to you",
+    "We are checking",
+    "No no Kimi. You will not have the drink.",
+    "Honestly, what are we doing here? Racing or ping pong?",
+    "No Mikey, no! That was so not right!",
+    "It's a yoke!",
+    "MEIN GOTT MUSS DAS SEIN",
+  ];
+
+  const randomQuote = useMemo(() => {
+    return racingQuotes[Math.floor(Math.random() * racingQuotes.length)];
+  }, []);
+
   // Local state for comparison table selection
   const [selectedStrategyIndex, setSelectedStrategyIndex] = useState(null);
   
@@ -366,7 +382,7 @@ const StrategyTab = ({
                         <path d="M2 12l10 5 10-5" />
                       </svg>
                       <div>
-                        No fuel-saving strategy needed. You can push like an animal! 🏎️
+                        No fuel-saving strategy needed. {randomQuote} 🏎️
                       </div>
                     </div>
                   ) : cardResult.errors?.length ? (
